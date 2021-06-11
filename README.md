@@ -1,7 +1,8 @@
-#AWS Serverless
+# AWS Serverless
 
 -----
-##Traditional Server in Datacenter Vs EC2 Vs Serverless
+
+## Traditional Server in Datacenter Vs EC2 Vs Serverless
 
 | Traditional Server      | EC2 | Serverless     |
 | :---        |    :---   |          :--- |

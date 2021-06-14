@@ -50,33 +50,70 @@
     - Create a new role from AWS policy templates
 
 #### Lambda Functions console
-- Configuration Tab
-    - We can write function and execute
+- Code Tab
+    - Write code, Deploy, Test
+- Test Tab
+    - Pass sample event and test
     - Create test events
     - Test the function with test events. Lambda provides many test event templates already for 
-    AWS services.
-    - Add Trigger 
-        - Invokes the function when the configured event happens 
+        AWS services.
+- Monitor Tab
+    - Metrics, Logs and Traces can be viewed.
+- Configuration Tab
+    - Basic Settings
+        - Memory
+        - Timeout
+        - Runtime
+        - Change execution role  
+    - Triggers 
+        - Invokes the function when the configured event happens
+        - List all the triggers configured for a Lambda function 
         - 1 or more triggers can be configured for a function
         - Each trigger source(S3,DynamoDB, SQS, SNS, etc) has different events and configurations
-        - Triggers can be enabled/disabled
+        - Triggers can be enabled/disabled/deleted
         - Lambda will add necessary permissions on the trigger source so that the source can 
         invoke the function from this trigger. 
-        the 
-        function
-    - Add Destination
-    - Throttle
-    - Qualifiers
-    - Layers
+    - Permissions
+        - Execution role
+            - To view the resources and actions that the function has permission to access.
+            - Example - CloudWatch permissions are created by default when we create a function.
+        - Resource-based policy
+            - A resource-based policy lets you grant permissions to other AWS accounts or services
+              on a per-resource basis.
+            - Example - Permission for API Gateway to invoke the function is added automatically 
+              when we add the function as Integration Type in API Gateway configuration.  
+    - Destinations
     - Environment Variables
     - Tags
-    - Basic Settings(Edit)
-      - Memory
-      - Timeout
-      - Runtime
-      - Change execution role
-- Permissions Tab
-- Monitoring Tab
+    - VPC
+    - Monitoring and operations tool - By default, Logs and Metrics enabled. By default, 
+    Tracing 
+        is disabled. Observability tools can be added as extensions.
+    - Concurrency
+        - By default, "Unreserved account concurrency" is 1000 and its used for a function.
+        - Provisioned concurrency configurations - To enable your function to scale without fluctuations in latency, use provisioned 
+          concurrency. Provisioned concurrency runs continually and has separate pricing for concurrency and execution duration.
+    - Asynchronous invocation
+        - Maximum age of unprocessed event to stay in queue.(default:6h)
+        - Retry attempts(default:2)
+        - DLQ 
+    - Code Signing
+        - Use code signing to restrict the deployment of unvalidated code.
+    - Database proxies
+    - File Systems
+    - State Machines
+- Alias Tab
+- Versions Tab
+
+- Create Version
+    - 
+- Create Alias
+    - An alias is a pointer to one or two versions. 
+    - You can shift traffic between two versions, based on weights (%) that you assign.
+    - NOTE: $LATEST is not supported for an alias pointing to more than 1 version
+    - The API Gateway can refer ``lambdaFunctionName:lambdaAlias`` or  
+    ``lambdaFunctionName:${stageVariables.lambdaAlias}`` to send traffic to specific alias 
+    which in turn send traffic configured versions.
 
 ### IAM
 - Policy 
@@ -126,18 +163,24 @@ between various components.
                       It can be tested from API Gateway console itself.
                 - Stages
                     - The stage created using "Deploy API" is shown here.
+                    - Invoke URL is available for each stage. But it requires "Authentication 
+                    Token".
                     - Invoke URL is available for each Method under each Resource in each stage. 
-                    This is url can be accessed from 
-                    browser.
+                      This is url can be accessed from browser.
                     - API cache can be enabled/disabled
                     - Logs/Tracing
                     - Stage Variables
                     - Method level throttling  can be enabled/disabled, throttling value can be 
                     modified.
                     - Canary
+                        - A Canary is used to test new API deployments and/or changes to stage variables. A Canary can receive a percentage of requests going to your stage. In addition, API deployments will be made to the Canary first before being able to be promoted to the entire stage.
+                        - Canary Stage Request Distribution, Cache, Canary Stage Variables can configured.
+                        - After testing, "Promote Canary" to the stage.
                     - Deployment History
                     - SDK Generation
                     - Export
+                    - Client Certificate - Certificate that API Gateway will use to call the 
+                    integration endpoints in this stage
                 - Authorizers
                 - Gateway Responses
                 - Models
@@ -154,10 +197,42 @@ between various components.
 - Settings 
 
 #### API Gateway Components
-![](images/apigateway-components.png)
+![apigateway-components](images/apigateway-components.png)
 - The default error response from apigateway->lambda exposes the lambda function name to outside 
 world.
 - API Developer - Your AWS account that owns the API Gateway deployment.
 - App Developer - An app creator who may or may not have an AWS account and interacts with the 
 API that you, the API developer, have deployed. App developers are your customers and he is 
-identified by an API Key. 
+identified by an API Key.
+- Method Request
+    - Gets unique ARN 
+    - Query params, HTTP request headers, Request Body(Content-Type) expected in request can be 
+    configured
+    - Request validators for Headers, Query params, body can be configured.
+    - API key required - true/false. By default its false
+    - Authorization. so per method authorization is possible to implement. 
+- Integration Request
+    - Select the Integration type.
+    - The Integration endpoint can be from same AWS account or from other account as well.
+        - Same AWS Account - Refer the destination just by name. example - lambda function name.
+        - Cross AWS Account - Refer the destination using the ARN. example - lambda function arn
+            - We need to add appropriate function policy on the function in another account. We 
+            can do it through aws-cli. The command is generated by console.
+    - Lambda as Integration:
+        - In order to implement traffic splitting using lambda alias and version, we need refer 
+          the function as ``lambdaFunctionName:${stageVariables.lambdaAlias}``
+        - For this, we need set appropriate function policy on the function. We can do it through
+          aws-cli. The command is generated by console and we need to update the appropriate alias.
+        - Deploy the API again.
+        - Set the stage variable ``lambdaAlias``.
+        - Launch the URL and the traffic will be routed to 2 different versions of a function. 
+        
+    - URL path parameters, URL query parameters, URL Headers from request can be mapped to 
+    Integration request. 
+    - Using Mapping Templates(velocity template) grab query params from URL and pass it
+    in "event" object.
+    - {"country":"${method.request.querystring.nameOfCountry}"}, here "nameOfCountry" is the query param and 
+    "country" is populated in "event" object.
+    - {"country":"${method.request.path.myparam1}"}, where myparam1 is path parameter.
+    - {"country":"${method.request.header.myparam2}"}, where myparam2 is header parameter.
+    

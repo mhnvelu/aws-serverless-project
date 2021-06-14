@@ -167,11 +167,19 @@ between various components.
                     Token".
                     - Invoke URL is available for each Method under each Resource in each stage. 
                       This is url can be accessed from browser.
-                    - API cache can be enabled/disabled
+                    - Cache settings : API cache can be enabled/disabled.
+                        - Cache can be enabled per Method level if it has queryParams.
+                        - 0.5GB to 237GB
+                        - Encrypt cache, TTL can be configured
+                        - Caching is for GET requests
+                        - Use CloudWatch API Cache Metrics.
+                        - Its not available for free tier.
                     - Logs/Tracing
                     - Stage Variables
-                    - Method level throttling  can be enabled/disabled, throttling value can be 
-                    modified.
+                    - Stage level throttling  can be enabled/disabled, throttling value can be 
+                    modified. Each Method in this stage respect the rates configured. Default 
+                    Rate is 10K/sec and Burst is 5K/sec.
+                    - WAF
                     - Canary
                         - A Canary is used to test new API deployments and/or changes to stage variables. A Canary can receive a percentage of requests going to your stage. In addition, API deployments will be made to the Canary first before being able to be promoted to the entire stage.
                         - Canary Stage Request Distribution, Cache, Canary Stage Variables can configured.
@@ -235,4 +243,13 @@ identified by an API Key.
     "country" is populated in "event" object.
     - {"country":"${method.request.path.myparam1}"}, where myparam1 is path parameter.
     - {"country":"${method.request.header.myparam2}"}, where myparam2 is header parameter.
+- API Gateway Endpoints Type
+    - Edge Optimized - Designed to help you reduce client latency from anywhere on the Internet.
+      ![apigateway-edge-optimized](images/apigateway-edge-optimized.png)
+    - Regional - Designed to reduce latency when calls are made from the same region as the API.
+      ![apigateway-regional](images/apigateway-regional.png)
+      ![apigateway-regional-2](images/apigateway-regional-2.png)
+    - Private - Designed to expose API's only inside your VPC.
+      ![apigateway-private-endpoint](images/apigateway-private-endpoint.png)
+    - NOTE: Endpoint type can changed at any time.
     

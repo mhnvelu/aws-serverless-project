@@ -36,7 +36,7 @@
   - Every month we get 1M invocations and 400,000 GBs of compute
   - Charged in 1ms increments
 
-#### Create and configure Lambda from console
+### Create and configure Lambda from console
 - Goto Lambda services from console
 - Minimum details required to create Lambda function:
   - Function Name
@@ -49,7 +49,7 @@
     - Use an existing role
     - Create a new role from AWS policy templates
 
-#### Lambda Functions console
+### Lambda Functions console
 - Code Tab
     - Write code, Deploy, Test
 - Test Tab
@@ -84,6 +84,10 @@
               when we add the function as Integration Type in API Gateway configuration.  
     - Destinations
     - Environment Variables
+        - key-value pairs that we can dynamically pass to the function without making code changes.
+        - Available via standard environment variable APIs.
+        - Can be encrypted via AWS KMS.
+        - Useful for different stages (dev,testing,production,etc)
     - Tags
     - VPC
     - Monitoring and operations tool - By default, Logs and Metrics enabled. By default, 
@@ -106,7 +110,9 @@
 - Versions Tab
 
 - Create Version
-    - 
+    - Publish new versions of a function.
+    - $LATEST always points to latest published version.
+    - If we have published versions v1 and v2, then $LATEST points to v2.
 - Create Alias
     - An alias is a pointer to one or two versions. 
     - You can shift traffic between two versions, based on weights (%) that you assign.
@@ -115,7 +121,27 @@
     ``lambdaFunctionName:${stageVariables.lambdaAlias}`` to send traffic to specific alias 
     which in turn send traffic configured versions.
 
-### IAM
+### Lambda Scaling and Concurrency
+- When a Lambda is invoked, the following steps happen
+    - Container comes up.
+    - Loads the function code.
+    - Runs the code.
+- Cold Start : Container comes up + Loads the function code
+- Limit of scaling - How many concurrent invocations can a Lambda execute?
+- Rate of scaling - How fast the containers come up?
+- Unreserved account concurrency : At any point in time, the total number of 
+concurrent executions for all Lambdas defined in a AWS Account.
+- Reserve concurrency : Total number of concurrent executions for a specific Lambda. If 
+concurrent invocations > reserve concurrency, then (concurrent invocations - reserve concurrency)
+ are throttled. 
+- Provisioned concurrency : 
+    - Pre-initialized execution environments.
+    - No cold start or Throttling due to Super Fast Scaling.
+    - AWS will keep assigned capacity "warm".
+    - It can be **configured only for an Alias or Version**. 
+
+
+## IAM
 - Policy 
     - A Policy is an json object that when associated with an identity or resource, it defines 
 their permissions.
@@ -132,7 +158,7 @@ their permissions.
     everything? Nope, we need to configure each service with a role to run with. This separation 
     of permissions between user roles and service roles is necessary to reduce blast radius.
 
-### API Gateway
+## API Gateway
 - API - Application Programming Interface is a set of clearly defined methods of communication 
 between various components.
 - Functions of API Gateway:
@@ -144,7 +170,7 @@ between various components.
   
 ![Api Gateway flow](images/apigateway-lambda.png)
   
-#### API Gateway Console
+### API Gateway Console
 - APIs
     - Create API
         - Create New API, Clone from Existing API, Import from Swagger, Example API
@@ -220,7 +246,7 @@ between various components.
 - VPC Links
 - Settings 
 
-#### API Gateway Components
+### API Gateway Components
 ![apigateway-components](images/apigateway-components.png)
 - The default error response from apigateway->lambda exposes the lambda function name to outside 
 world.
@@ -269,7 +295,7 @@ identified by an API Key.
       ![apigateway-private-endpoint](images/apigateway-private-endpoint.png)
     - NOTE: Endpoint type can changed at any time.
 
-#### CORS(Cross-Origin Resource Sharing) with API Gateway
+### CORS(Cross-Origin Resource Sharing) with API Gateway
 - Browser security feature that restricts cross-origin HTTP requests.
 - What qualifies for Cross Origin HTTP Requests?
     - A different domain (from abc.com to xyz.com)
@@ -295,7 +321,7 @@ application is loaded from unless we can configure CORS.
     - Non Simple
         - Almost all real world api's
 
-#### API Gateway HTTP API Vs REST API
+### API Gateway HTTP API Vs REST API
 - HTTP API:
     - If we need only integration is Lambda and HTTP URLs.
     - Low-latency, cost-effective integration with Lambda and HTTP URLs.

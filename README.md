@@ -152,7 +152,8 @@ between various components.
             - API:
                 - Resources
                     - Could be different projects/business areas  
-                    - Create Method, Create Resource, Enable CORS, Deploy API, Import API, Delete API
+                    - Create Method, Create Resource, **Enable CORS**, Deploy API, Import API, 
+                    Delete API
                     - Multiple resources can be created under a single API 
                     - Create Resource - Create a RESTFul resource
                     - Create Method - Provides HTTP method. The Integration type available are 
@@ -200,6 +201,21 @@ between various components.
      client API keys.
 - API Keys
 - Custom Domain Names
+    - Register a domain abc.com in Route53.
+    - Create certificate from ACM for the domain abc.com
+    - Create a Custom Domain Name in API Gateway for abc.com
+        - Configure TLS version
+        - Endpoint configuration
+        - Select ACM certificate created in previous steps.
+        - After creating, it generates a API Gateway Domain Name and Hosted Zone ID.
+    - In Route53->Hosted Zones, the domain abc.com is available. 
+        - Add a record of Type A.
+        - Select a Routing policy.
+        - For Value/Route Traffic to -> Select "Alias to API Gateway API", select the region and 
+          select the API Gateway Domain Name.
+        - Select the Record Type.
+    - Under Custom Domain Name in API Gateway for abc.com, add API mappings. Select the API that 
+    needs to be mapped to this domain.  
 - Client Certificates
 - VPC Links
 - Settings 
@@ -252,4 +268,45 @@ identified by an API Key.
     - Private - Designed to expose API's only inside your VPC.
       ![apigateway-private-endpoint](images/apigateway-private-endpoint.png)
     - NOTE: Endpoint type can changed at any time.
-    
+
+#### CORS(Cross-Origin Resource Sharing) with API Gateway
+- Browser security feature that restricts cross-origin HTTP requests.
+- What qualifies for Cross Origin HTTP Requests?
+    - A different domain (from abc.com to xyz.com)
+    - A different sub-domain (from abc.com to mnc.abc.com)
+    - A different port (from abc.com:8080 to abc.com:8081)
+    - A different protocol (from https://abc.com to http://http.com)
+- So web applications using the API can only request resources from same origin that the 
+application is loaded from unless we can configure CORS.
+- CORS headers sent from remote service to client:
+   
+   ```
+   Access-Control-Allow-Headers
+   Access-Control-Allow-Methods
+   Access-Control-Allow-Origin
+   ```
+- CORS Types:
+    - Simple:
+        - Only GET, POST, HEAD
+        - POST must include Origin Header
+        - Request payload content type is text/plain, multipart/form-data or 
+        application/x-www-form-urlencoded
+        - Request does not contain custom header
+    - Non Simple
+        - Almost all real world api's
+
+#### API Gateway HTTP API Vs REST API
+- HTTP API:
+    - If we need only integration is Lambda and HTTP URLs.
+    - Low-latency, cost-effective integration with Lambda and HTTP URLs.
+- HTTP Vs REST API
+    - It supports only **Regional** endpoint type. But REST API supports all.
+    - It supports only **HTTP Proxy, Lambda Proxy and Private Integration** integration types. But REST API supports all.
+    - On security perspective, it does not support **client certificates, WAF, Resource 
+    Policies**. But REST API supports all.
+    - It supports **Amazon Cognito and Native OpenID Connect/OAuth2.0** authorizers. But REST API
+     supports **AWS Lambda, IAM, Amazon Cognito**.
+    - On API management, it supports **Custom Domain Names**. But REST API supports **Usage 
+    Plans, API Keys, Custom Domain Names**.
+    - On Monitoring, it supports **CloudWatch Logs and Metrics**. But REST API supports 
+    **CloudWatch Logs, CloudWatch Metrics, Kinesis Data Firehouse, Execution Logs, AWS X-Ray**.

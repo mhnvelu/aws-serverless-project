@@ -83,6 +83,12 @@
             - Example - Permission for API Gateway to invoke the function is added automatically 
               when we add the function as Integration Type in API Gateway configuration.  
     - Destinations
+        - Refer [introducing-aws-lambda-destinations](https://aws.amazon.com/blogs/compute/introducing-aws-lambda-destinations/)
+        - Destinations for asynchronous invocations is a feature that provides visibility into 
+        Lambda function invocations and routes the execution results to AWS services, simplifying event-driven applications and reducing code complexity.
+        -  On Success/Failure, results can be sent to Amazon Simple Notification Service (SNS), 
+        Amazon Simple Queue Service (SQS), Another Lambda or Amazon EventBridge for further 
+        processing.
     - Environment Variables
         - key-value pairs that we can dynamically pass to the function without making code changes.
         - Available via standard environment variable APIs.
@@ -104,22 +110,25 @@
     - Code Signing
         - Use code signing to restrict the deployment of unvalidated code.
     - Database proxies
+        - Add RDS Proxy
     - File Systems
+        - Add EFS 
     - State Machines
 - Alias Tab
 - Versions Tab
+    - Create Version
+        - Publish new versions of a function.
+        - $LATEST always points to latest published version.
+        - If we have published versions v1 and v2, then $LATEST points to v2.
+- Alias Tab
 
-- Create Version
-    - Publish new versions of a function.
-    - $LATEST always points to latest published version.
-    - If we have published versions v1 and v2, then $LATEST points to v2.
-- Create Alias
-    - An alias is a pointer to one or two versions. 
-    - You can shift traffic between two versions, based on weights (%) that you assign.
-    - NOTE: $LATEST is not supported for an alias pointing to more than 1 version
-    - The API Gateway can refer ``lambdaFunctionName:lambdaAlias`` or  
-    ``lambdaFunctionName:${stageVariables.lambdaAlias}`` to send traffic to specific alias 
-    which in turn send traffic configured versions.
+    - Create Alias
+        - An alias is a pointer to one or two versions. 
+        - You can shift traffic between two versions, based on weights (%) that you assign.
+        - NOTE: $LATEST is not supported for an alias pointing to more than 1 version
+        - The API Gateway can refer ``lambdaFunctionName:lambdaAlias`` or  
+            ``lambdaFunctionName:${stageVariables.lambdaAlias}`` to send traffic to specific alias 
+            which in turn send traffic configured versions.
 
 ### Lambda Scaling and Concurrency
 - When a Lambda is invoked, the following steps happen
@@ -140,6 +149,92 @@ concurrent invocations > reserve concurrency, then (concurrent invocations - res
     - AWS will keep assigned capacity "warm".
     - It can be **configured only for an Alias or Version**. 
 
+### Lambda and External Dependencies
+- By default, Lambda environment provides some dependencies like json, boto3.
+- If we use a dependency which is not provided by Lambda environment, then function execution 
+will fail. It will throw an error **Unable to import module 'lambda_function': No module named 
+'modulename'**
+- When we work from our laptop, we need to install the dependencies using npm, pip, mvn, yum, 
+etc, package as zip and deploy it.
+- If we work on Cloud9, then we need to install the dependencies using npm, pip, mvn, yum, 
+etc and deploy it. Cloud9 takes care of zip the function along with dependencies.
+
+### Lambda Container Images
+- AWS provides base images with some dependencies and our function code is executed on it.
+- Runtime interface client manages the interaction between Lambda service and your function code.
+- If we want to use our own image, then we can package and deploy Lambda function as container 
+images. We need to use AWS provided base image to build our custom image.
+    - Custom image should include Runtime Interface client
+    - Supports Linux based image currently
+    - Supports specific container image settings
+- This does not run Lambda code on EKS/ECS. (NOT Knative /CloudRun equivalent).
+- Advantages:
+    - Utilize existing container tooling
+    - Create image with what you need
+    - Perform local testing with runtime interface emulator 
+    - Container image can be upto 50GB in size. But zip deployment is 50MB only.
+- We need to pay for ECR for storing container images
+- This feature is supported in AWS CLI, CloudFormation, SAM.
+
+### Lambda Layers
+- Lets functions easily share code: Upload layer once, reference within any function.
+- Layer can be anything: dependencies, training data, configuration files, etc.
+- Promotes separation of responsibilities, lets developers work faster on writing business logic.
+- Built-in support for secure sharing by ecosystem.
+- Layers get loaded with function code and hence no additional execution latency. No impact on 
+execution time of function.
+- A function can have upto 5 layers.
+- 250MB is the total size limit which includes total layers + unzipped function code.
+- version the layers and deploy across accounts.
+- The layers should be created under a specific directory and zip it. Refer AWS Lambda docs.
+- Create Layer from console:
+    - Layer name (or)
+    - You can enter the ARN for the layer directly. This ARN can point to layers in a different 
+        AWS account (but has to be in the same region). This allows you to use layers published by third-party vendors.
+    - The zip file needs to be uploaded either from local or S3 bucket
+    - Select the Runtime
+- When a new version of the layer is published, you would need to deploy an update to the Lambda functions and explicitly reference the new version.
+
+### Lambda and EFS Integration
+- By default, Lambda runtime container provides 512MB of ephemeral space. It can't be used for 
+durable storage.
+- EFS is a AWS managed Elastic File System and its fully durable.
+-  We can mount same EFS onto multiple Lambda functions. Each Lambda can perform certain 
+operations like Write, Read, Delete on the shared EFS.
+- EFS is pay for what you use unlike EBS, RDS.
+- EFS is shared across concurrent executions of a Lambda function.
+- EFS can be used with **Provisioned Concurrency**.
+- Some use cases of EFS:
+    - Process large files across multiple functions
+    - Use other services like EKS, EC2 with Lambda
+    - Lambda is not Stateless anymore.
+- Refer [shared-file-system-for-your-lambda-functions](https://aws.amazon.com/blogs/aws/new-a-shared-file-system-for-your-lambda-functions/) 
+- The EFS is created in a specific VPC and we can span it across all AZs.
+- The Lambda should have permissions of **AWSLambdaVPCAccessExecutionRole, 
+AmazonElasticFileSystemClientReadWriteAccess** inorder o work with EFS. In a production environment, you can restrict access to a specific VPC and EFS access point.
+- The Lambda function should be attached to the VPC where EFS is created. Select the VPC subnets 
+and security groups.
+- Then add the File System to Lambda and configure the mount path.
+
+### Lambda and RDS Proxy
+- When load increases, API Gateway and Lambda can scale and handle the load. But AWS RDS is not.
+- AWS RDS can handle limited number of connections. Orphan connections stay.
+- Database needs to spend CPU/Memory for connection management.
+- Lambda can exhaust connection limit leading to throttle or error.
+- AWS RDS Proxy sits between Lambda and RDS. It is fully managed, highly available database proxy.
+- It maintains connections pool and allows applications to share it.
+- It uses Secrets Manager for DB credentials.
+- If RDS fails and creates a new instance, before the DNS points to the new DB instance, 
+    RDS proxy can point to the new instance. Failover without DNS change, 66% reduced failover time for Aurora, RDS.
+- We can allocate how many connections Lambdas are allowed to use.
+- Amazon RDS Proxy is priced per vCPU per hour for each database instance for which it is enabled.
+- Setup:
+    - IAM role for RDS Proxy so that it can reach RDS DB and Secrets Manager
+    - IAM role for Lambda tp reach RDS Proxy.
+    - Everything within the VPC
+        - Proper security groups for Lambda to Proxy to RDS
+        - DB should be launched in private subnet
+    - Lambda requires external dependency like RDS MySQL. 
 
 ## IAM
 - Policy 
@@ -336,3 +431,49 @@ application is loaded from unless we can configure CORS.
     Plans, API Keys, Custom Domain Names**.
     - On Monitoring, it supports **CloudWatch Logs and Metrics**. But REST API supports 
     **CloudWatch Logs, CloudWatch Metrics, Kinesis Data Firehouse, Execution Logs, AWS X-Ray**.
+    
+## AWS Event Bus
+- It exists in CloudWatch Section.
+- A mechanism that allows different components to communicate with each other without knowing 
+about each other.
+- AWS Services from same or different accounts can publish events on the bus and other AWS 
+services can consume.
+
+## AWS Event Bridge
+- EventBridge is a serverless service.
+- Easily build event driven architectures.
+- Existing Event Bus is a subset of EventBridge.
+- AWS Services from same or different accounts, SaaS Providers can publish events on the bus and other AWS services can consume.
+
+## SQS, SNS, Lambda
+- AWS Lambda Service polls SQS queue continuously  for messages.
+- SQS Queue:
+    - The batch size limit is 10
+    - 5 <= polling limit <= Lambda concurrency limit
+    - When the messages are getting processed by Lambda, then those messages are not visible to 
+    other consumers. It has visibility timeout.
+    - If all messages are processed successfully, AWS Lambda Service deletes messages from SQS.
+    - Lambda Service rollsback entire batch if one or more message fails. Messages can be 
+    reprocessed. So to avoid it, our own Lambda function can delete successfully processed 
+    messages from SQS.
+    - Sync To Async : High Volume Traffic
+    - **Synchronous Architecture**
+    - In Synchronous Architecture, all components need to scale together.
+    - Scaling is as high as scaling capacity of lowest scalable component.
+    - Each component will keep running till the whole chain finishes.
+    - If one component fails, whole call fails.
+    - **Asynchronous Architecture**
+    - In Asynchronous Architecture, all components can scale separately.
+    - Less aggressive scaling requirement on Lambda.
+    - Retry mechanism available even if one component fails.
+    - Control traffic to downstream.
+- **Tips for SQS and Lambda**
+    - Set function concurrency to 5 or more.
+    - Less than 5 function concurrency can lead to throttling error.
+    - Set Queue's visibility timeout to at least 6 times the timeout of Lambda function.
+    - Configure DLQ to keep messages to be reprocessed.
+    - POST request can be Async, GET request can be Sync.
+    - High volume S3 processing - s3->Lambda(Triggered from s3)->SQS->Lambda(processing) 
+    - Reliable Fanout Architecture
+    
+    

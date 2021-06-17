@@ -476,4 +476,25 @@ services can consume.
     - High volume S3 processing - s3->Lambda(Triggered from s3)->SQS->Lambda(processing) 
     - Reliable Fanout Architecture
     
-    
+## Step Functions
+- AWS Step Functions is a serverless function orchestrator that makes it easy to sequence AWS Lambda functions and multiple AWS services into business-critical applications.
+
+- Types
+    - Standard
+    - Express
+
+- Service Integration Patterns
+    - Request Response
+        - The step function does not wait for the invoked service to complete. Step function 
+        executes the next state without waiting for completion of submitted task in previous state.
+    - Run a Job(.sync)
+        - The step function does waits for the invoked service to complete.
+    - Wait For Callback(.waitForTaskToken)
+        - Step Function pass a task token to integrated service
+        - Workflow paused until task token is returned
+        - Can wait for a year. But we can configure using "hearBeatSeconds"
+- Activities
+    - Step Function invokes an activity(ARN of an Activity) with an Input and Task Token
+    - The specific Activity reads the Input and Task Token and perform some operations
+    - Once its done, the paused state in the Step Function can be completed by submitting the 
+    Task Token.

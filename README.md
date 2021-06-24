@@ -59,6 +59,9 @@
         AWS services.
 - Monitor Tab
     - Metrics, Logs and Traces can be viewed.
+    - ![lambda-logging-and-monitoring](images/lambda-logging-and-monitoring.png)
+    - The CloudWatch logs can be exported to S3 bucket.
+    - Subscription filters (ElasticSearch, Kinesis, Lambda) can be created on the Log Group.
 - Configuration Tab
     - Basic Settings
         - Memory
@@ -97,8 +100,7 @@
     - Tags
     - VPC
     - Monitoring and operations tool - By default, Logs and Metrics enabled. By default, 
-    Tracing 
-        is disabled. Observability tools can be added as extensions.
+        X-Ray Tracing is disabled. Observability tools can be added as extensions.
     - Concurrency
         - By default, "Unreserved account concurrency" is 1000 and its used for a function.
         - Provisioned concurrency configurations - To enable your function to scale without fluctuations in latency, use provisioned 
@@ -121,7 +123,6 @@
         - $LATEST always points to latest published version.
         - If we have published versions v1 and v2, then $LATEST points to v2.
 - Alias Tab
-
     - Create Alias
         - An alias is a pointer to one or two versions. 
         - You can shift traffic between two versions, based on weights (%) that you assign.
@@ -240,7 +241,7 @@ and security groups.
 - Policy 
     - A Policy is an json object that when associated with an identity or resource, it defines 
 their permissions.
-    - The json object contains "Effect", "Action", "Resource"
+    - The json object contains "Effect", "Action", "Resource", "Principal", "Condition"
     - The policy can be attached to users, groups or roles
 - User
     - An IAM user can represent a person or application that interact with AWS.
@@ -297,14 +298,36 @@ between various components.
                         - Use CloudWatch API Cache Metrics.
                         - Its not available for free tier.
                     - Logs/Tracing
+                        - CloudWatch Logging(Execution Logging)
+                            - Logs related to execution of API
+                            - Includes log for
+                                - Request/Response payloads
+                                - API keys
+                                - Usage plans
+                                - Data used by Lambda authorizers(custom authorizers)
+                            - Log group would be created automatically, named 
+                            API-gateway-Execution-Logs_{rest-api-id}/{stage_name} format
+                        - Access Logging
+                            - Logs related to access to API
+                            - Includes logs for
+                                - Who accessed the API
+                                - How the caller accessed the API
+                            - Create a new Log Group or send to existing one
+                            - Logs can be generated in CLF, JSON, XML, CSV formats for ease of 
+                            consumption by log analysis system if available
+                        - Enable X-Ray Tracing
+                        - Execution, Access logging, X-ray are chargeable. No free tier.
                     - Stage Variables
                     - Stage level throttling  can be enabled/disabled, throttling value can be 
                     modified. Each Method in this stage respect the rates configured. Default 
                     Rate is 10K/sec and Burst is 5K/sec.
                     - WAF
+                        - API Gateway requires a Regional web ACL.
+                        - AWS WAF is your first line of defense against web exploits. When AWS WAF is enabled on an API, AWS WAF rules are evaluated before other access control features
                     - Canary
                         - A Canary is used to test new API deployments and/or changes to stage variables. A Canary can receive a percentage of requests going to your stage. In addition, API deployments will be made to the Canary first before being able to be promoted to the entire stage.
-                        - Canary Stage Request Distribution, Cache, Canary Stage Variables can configured.
+                        - Canary Stage Request Distribution, Cache, Canary Stage Variables can 
+                          be configured.
                         - After testing, "Promote Canary" to the stage.
                     - Deployment History
                     - SDK Generation
@@ -312,14 +335,36 @@ between various components.
                     - Client Certificate - Certificate that API Gateway will use to call the 
                     integration endpoints in this stage
                 - Authorizers
+                    - Lambda
+                    - Cognito
                 - Gateway Responses
                 - Models
                 - Resource Policy
+                    - Configure who can access the API.
+                - Dashboard
+                    - API calls count, Latency, Integration Latency, 4xx, 5xx errors metrics are 
+                    displayed.
+                - Settings
+                    - By default, Execution logs and Access logs are disabled for API Gateway
+                    - We need to create a role in IAM for an API Gateway with permissions to log 
+                    in CloudWatch. This role once created will be automatically attached to API 
+                    Gateway.
+                    - Then, Settings(this section) will show the role that is created in the 
+                    previous step.
       
 - Usage Plans
     - A Usage plan provides selected API clients with access to one or more deployed APIs. You 
-    can use usage plan to configure throttling and quota limits, which are enforced on individual
-     client API keys.
+      can use usage plan to configure throttling and quota limits, which are enforced on individual
+      client API keys.
+    - Create Usage plan with throttling, burst, quota limits.
+    - Associate the Usage plan with 1 or more API stages. Throttling and Burst can be configured 
+    (its optional) for each Resource & Method under each API.
+    - Create API Key - it can be auto-generated and custom.
+    - Attach the API Key with the Usage Plan.
+    - NOTE : But at this stage, still we can access our APIs without API key.
+    - So, navigate API->Resources->Method and set "API Key Required" as true, and deploy it the 
+    respective API Stage.
+    - NOTE: Now the client needs API Key in request header **x-api-key**
 - API Keys
 - Custom Domain Names
     - Register a domain abc.com in Route53.
@@ -355,7 +400,8 @@ identified by an API Key.
     configured
     - Request validators for Headers, Query params, body can be configured.
     - API key required - true/false. By default its false
-    - Authorization. so per method authorization is possible to implement. 
+    - Authorization - None, AWS_IAM. so per method authorization is possible to implement. 
+        - **AccessKey** and **SecretKey** needs to be sent in http headers.
 - Integration Request
     - Select the Integration type.
     - The Integration endpoint can be from same AWS account or from other account as well.
@@ -498,3 +544,113 @@ services can consume.
     - The specific Activity reads the Input and Task Token and perform some operations
     - Once its done, the paused state in the Step Function can be completed by submitting the 
     Task Token.
+    
+## CloudTrail Vs CloudWatch Logging
+- CloudTrail does infrastructure logging
+- Example : 
+    - Creation/Deletion of S3 bucket
+    - Creation/Deletion of VPC
+    - Creation/Deletion of Security Group
+- CloudWatch does Application Logging
+- Example :
+    - API request/response payload
+    - Logging from your Lambda code
+    - Logs for execution of your API
+- CloudTrail logs can be sent to CloudWatch logs
+- All the logs can be fed to an analytic system for actionable insights
+
+## AWS CloudWatch Log Insights
+- Fully managed log query tool
+- AWS managed service
+- No setup, maintenance required
+- Queries massive amount of logs in seconds
+- Produce visualizations
+- Lots of pre-built queries
+- Other 3pp tools can be used as well - CloudHealth, dashbird, IO pipe, Datadog or AWS Athena
+
+## AWS X-ray
+- Distributed tracing system
+- Shows map of underlying components
+- Identify root cause of performance issues
+- By default, X-Ray logs the time duration taken by each service.
+- If we want more details, we can import x-ray sdk and annotate each lambda function with some 
+details. Then those details are available in tracing.
+
+## Security of Serverless APIs
+- API Keys and Usage Plans
+- Using IAM credentials
+- AWS Cognito User Pools
+- AWS Cognito Identity Pools
+- AWS Secrets Manager
+- Lambda Resource Policy
+- Lambda Authorizer (Custom Authorizer)
+- API Gateway Resource Policy
+
+### API Keys and Usage Plans
+- If we want to group different APIs, then we need to use Usage Plans.
+- Usage plans control Throttling, Bursting and Quota. Usage Plans help you meter API usage.
+- Throttling limits define the maximum number of requests per second available to each key. 
+- Quota limits define the number of requests each API key is allowed to make over a period. 
+- An API key can be assigned to a Usage Plan. So any APIs under this Usage Plan, can use this API
+ Key.
+- Whoever has access to API Key can access the APIs. 
+
+### Using IAM credentials
+- IAM credentials - Access Key ID and Secret Access Key
+- The entity that the Access Key ID and Secret Access Key is attached to should have policies
+(AmazonAPIGatewayInvokeFullAccess) defined for API invocation.
+- Granular access at Method level is possible. Example, 3 different users can only access 
+specific Method for which they have been assigned policies. Each user will have policy assigned 
+which allow them to invoke only specific Method on a Resource.
+
+````json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": "execute-api:invoke",
+      "Effect": "Allow",
+      "Resource": "arn:aws:execute-api:eu-west-1:*:<unique-id-for-API>/<STAGE>/<METHOD>/<RESOURCE>"
+    }
+  ]
+}
+````
+- Whoever has access to Access Key ID and Secret Access Key can access the APIs. They are not 
+rotated periodically.
+
+### AWS Cognito User Pools
+![cognito-user-pool-api-gateway-flow](images/cognito-user-pool-api-gateway-flow.png) 
+
+- The token has expiry.
+- We can't assign any IAM role for Cognito Users.
+- If we associate an Authorizer to the API Method and if that authorizer is authorizing 
+against the Cognito User Pool, the user will be able to call all the Methods.
+- There is no way to support granular access based on IAM role in Cognito User Pool.
+
+### AWS Cognito Identity Pools
+![cognito-identity-pool-api-gateway-flow](images/cognito-identity-pool-api-gateway-flow.png)
+- It leverages both IAM role and JWT token.
+- Granular access at Method level is possible because it leverages IAM role.
+
+### AWS Secrets Manager
+- It stores API Key, DB Credentials, encrypted with KMS key.
+- Can rotate the credentials periodically.
+- The credentials are not hard-coded into the code.
+  
+### Lambda Resource Policy
+![lambda-resource-policy](images/lambda-resource-policy.png)
+- Specifies which AWS entity can invoke this particular Lambda.
+- By default, if we invoke Lambda from API gateway in same AWS account, resource policy of Lambda
+ is automatically updated to allow the invocation.
+- For real world projects, console access beyond development should be prohibited and should be 
+ deployed through CI/CD toolchain with resource policy defined in CloudFormation.
+    - CI/CD ensures userid(who is deploying) belongs to application ID.
+- By default, if we invoke Lambda from API gateway from different AWS account, resource policy of
+ Lambda needs to be updated explicitly.
+ 
+### - Lambda Authorizer (Custom Authorizer)
+![lambda-authorizer-api-gateway-flow](images/lambda-authorizer-api-gateway-flow.png)
+- Auth0 is the 3rd party application.
+
+### API Gateway Resource Policy
+![resource-policy-api-gateway-flow](images/resource-policy-api-gateway-flow.png)

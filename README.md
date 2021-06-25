@@ -231,7 +231,7 @@ and security groups.
 - Amazon RDS Proxy is priced per vCPU per hour for each database instance for which it is enabled.
 - Setup:
     - IAM role for RDS Proxy so that it can reach RDS DB and Secrets Manager
-    - IAM role for Lambda tp reach RDS Proxy.
+    - IAM role for Lambda to reach RDS Proxy.
     - Everything within the VPC
         - Proper security groups for Lambda to Proxy to RDS
         - DB should be launched in private subnet
@@ -654,3 +654,157 @@ against the Cognito User Pool, the user will be able to call all the Methods.
 
 ### API Gateway Resource Policy
 ![resource-policy-api-gateway-flow](images/resource-policy-api-gateway-flow.png)
+
+## Storage for Serverless
+- SQL, NoSQL DB
+### Issue with Lambda and Traditional DB
+- Lambda has massive concurrency limit and can scale unlimited as the load increases. But DB have 
+fixed Read Write Limit(Pay for max limit). At some point, the DB will reach max limit, DB response slows and app might crash.
+- So we need DB where the Read Write is scalable as well. Pay as per usage.
+- Auto Scalable storage options for Lambda:
+    - NoSQL DynamoDB
+    - Aurora Serverless
+    
+## DynamoDB
+- Fully managed NoSQL DB
+- Hardware provisioning, setup and configuration, replication, software patching, cluster scaling
+ managed by AWS
+- Store and retrieve any amount of data
+- Serve any level of request traffic
+- Autoscaling
+- Highly available and Durable
+- Multi-region, Multi-master DB using Global Tables
+- Encryption at rest
+- Schemaless
+ 
+### DynamoDB core components
+- Tables - A Table is a collection of data.
+- Items - An item is a group of attributes that is uniquely identifiable among all of the other 
+items.
+- Attributes - Each item is composed of one or more attributes. An attribute is a fundamental 
+data element, something that does not need to be broken down any further.
+ 
+### Keys in DynamoDB
+- Primary Key - The Primary Key uniquely identifies each item in the table, so that no items can 
+have the same key. 
+- Partition Key - A simple primary key, composed of one attribute known as the partition key.
+- Partition Key and Sort Key - Referred as Composite Primary Key which is composed of two 
+attributes. The first attribute is the Partition Key and the second attribute is the Sort Key. No
+ two items can have same combo of these two attributes.
+- Partition Key is also referred as hash attribute, Sort Key is also referred as range attribute.
+
+### Create Table in DynamoDB
+- Details required to create a table
+    - Name of the table
+    - Primary key (data types supported - string,number,binary)
+    - Sort key
+- Created Table has below tabs
+    - Overview Tab
+        - General Information
+            - Capacity mode - By default, it is **provisioned**
+        - Items Summary
+            - Displays items in the table
+            - Item can be created. Partition key is must while creating an item.
+        - Table Capacity Metrics
+    - Indexes Tab 
+        - Global secondary indexes - Global secondary indexes allow you to perform queries on attributes that are not part of the table's primary key.
+    - Monitor Tab  
+        - CloudWatch Alarms - Create and manage your alarms in CloudWatch, then monitor them in context in DynamoDB
+        - CloudWatch Insights
+        - CloudWatch Metrics
+    - Global Tables Tab
+        - Other AWS Regions to which you have replicated this table.
+    - Backups Tab
+        - Point-in-time recovery - Point-in-time recovery provides continuous backups of your DynamoDB data for 35 days to help you protect against accidental write or deletes. Additional charges apply
+        - On-demand backups
+    - Exports and Streams Tab
+        - Export to S3
+        - Amazon Kinesis data stream details
+            - Kinesis Data Streams for DynamoDB captures item-level changes in your table, and replicates the changes to a Kinesis data stream. You then can consume and manage the change information from Kinesis. 
+        - DynamoDB stream details
+            - Capture item-level changes in your table, and push the changes to a DynamoDB stream. You then can access the change information through the DynamoDB Streams API.
+            
+### DynamoDB Secondary Indexes
+- A Secondary Index lets us to query the data in the table using an alternate key, in addition to
+ queries against the primary key.
+- Global Secondary Index:
+    - An index with a partition and sort keys that can be different from those on the table.
+- Local Secondary Index:
+    - An index that has the same partition key as the table, but a different sort key.
+NOTE: Table design should be done in such a way that, we can maximum efficiency with minimum 
+number of indexes. Index updates can be expensive.      
+
+### DynamoDB Global Tables
+- AWS manages replication across regions.
+- If one table in one region goes down, DynamoDB automatically shifts the traffic to table in 
+other region.
+- All this works seamlessly and we no need to write custom code.
+
+### DynamoDB Read Consistency
+- DynamoDB is highly durable because the data is replicated across multiple AZ in a Region. So 
+even if one AZ goes down, the application still fetch from other AZs which works seamlessly with
+ additional code from us.
+- If we update an item, then before its replicated to other AZs, the application might read old 
+data. This is inconsistent read.
+#### Eventual Consistent Reads
+- Response might return old data.
+- If we repeat read request after a short time, latest data is returned.
+- **By default, reads are eventual consistent**.
+#### Strongly Consistent Reads 
+- Returns most up-to-date data.
+- Reads can be made Strongly Consistent by setting **ConsistentRead** parameter to true in 
+DynamoDB API call *get_item* from Lambda.
+- Strongly consistent reads have less throughput than eventually consistent reads.
+
+#### DynamoDB Reads and Writes
+- DynamoDB read and write throughput is measured through capacity units.
+- One Read Capacity Unit :
+    - One Strongly consistent read per second for item upto 4KB in size.
+    - Two Eventually consistent read per second for item upto 4KB in size.
+    - For larger item, more capacity units are needed.
+- One Write Capacity Unit:
+    - One write per second for item upto 1KB in size. Applicable to both Strongly and Eventually consistent
+    - For larger item, more capacity units are needed.
+- Given lowest and highest load in KB/second for the application, we can derive lowest and 
+highest read/write capacity units.
+
+#### DynamoDB Autoscaling(Setting read/write capacity)
+- Provisioned
+    - Manage and optimize the price by allocating read/write capacity in advance.
+    - Read Capacity
+        - AutoScaling ON (Dynamically adjusts provisioned throughput capacity on your behalf in 
+        response to actual traffic patterns.)
+            - Minimum Capacity Units
+            - Maximum Capacity Units
+            - Target Utilization
+        - AutoScaling OFF 
+            - Provisioned Capacity Units
+    - Write Capacity
+        - AutoScaling ON (Dynamically adjusts provisioned throughput capacity on your behalf in 
+            response to actual traffic patterns.)
+            - Minimum Capacity Units
+            - Maximum Capacity Units
+            - Target Utilization
+        - AutoScaling OFF 
+            - Provisioned Capacity Units
+- On-demand
+    - Scales without capacity planning.
+    - Possible to switch back and forth between Provisioned and On-Demand.
+    - Simplify billing by paying for the actual reads and writes your application performs.
+    - When to use On-demand?
+        - Useful if application traffic is difficult to predict.
+        - Workload has large spikes of short duration.
+        - Brand new application
+        
+#### Encryption & Decryption of Data using CMK in Lambda
+- By default, DynamoDB uses AWS managed master key for encrypting and decrypting the items from 
+table.
+- We can create our own master key as well.
+    - Create a key
+    - Assign administrator for the Key. It can be IAM user and roles.
+    - Assign  IAM user and roles who can use this key to encrypt and decrypt from within the 
+    applications.
+    - The role selected above should be used by Lambda function if it wants to encrypt and 
+    decrypt using this key.
+    - The Lambda function code has to encrypt the data using this key and persist in DB.
+    - The Lambda function code has to decrypt the data using this key when retrieving data from DB.

@@ -236,6 +236,12 @@ and security groups.
         - Proper security groups for Lambda to Proxy to RDS
         - DB should be launched in private subnet
     - Lambda requires external dependency like RDS MySQL. 
+    
+### Lambda Function code
+- If the function returns response with statusCode, then that's the status code returned to 
+client. If no statusCode is set, then by default the status code returned is 200.
+- If the function throws an unexpected error, then the status code returned is 502, Internal 
+server error
 
 ## IAM
 - Policy 
@@ -808,3 +814,244 @@ table.
     decrypt using this key.
     - The Lambda function code has to encrypt the data using this key and persist in DB.
     - The Lambda function code has to decrypt the data using this key when retrieving data from DB.
+    
+## AWS SAM (Serverlesss Application Model)
+- Shorthand syntax to create Lambda, API, DB, Event source mappings
+    - Can be written in plain CloudFormation but will be much simpler in SAM
+    - Converted into  CloudFormation during deployment
+- Local Debugging and Testing
+- Deep integration with dev tool - AWS and External
+    - IDEs. Jenkins, Stackery toolkit, etc.
+
+- Declaring Serverless Resources
+    - AWS::Serverless::Function
+    - AWS::Serverless::API
+    - AWS::Serverless::Application
+    - AWS::Serverless::LayerVersion
+    - AWS::Serverless::SimpleTable
+- Package and Deploy the artifact, create the stack
+    - Create a bucket named "demo-test-bucket-1" on s3 service.
+    ```
+    sam package --template-file <sam-template-file.yml> --s3-bucket demo-test-bucket-1 
+    --output-template-file packaged-artifact.yml
+    
+    sam deploy --template-file packaged-artifact.yml --stack-name test-1 --capabilities 
+    CAPABILITY_IAM
+    ```
+
+- deploy creates 2 stages - Prod and Stage
+- The API name is the stack name
+- Lambda naming convention is <stackname-functionname-randomid>
+
+- Build with external dependencies
+    ```
+    sam build --template <sam-template-file.yml>
+    ```
+    *This will create build artifacts under .aws-sam/build*
+
+- Invoke Lambda and API locally
+    ```   
+     sam local invoke HelloWorldFunction --event events/event.json
+     
+     sam local invoke --event events/event.json
+        
+     sam local start-api               
+    ```
+    
+- View Logs
+    ```
+    sam logs -n HelloWorldFunction --stack-name test-1 --tail
+    ```
+    
+- Delete Stack
+    ```
+    aws cloudformation delete-stack --stack-name test-1    
+    ```
+    
+- SAM and Swagger
+    - Swagger with already created Lambda
+        - The swagger file needs to refer the ARN of already existing Lambda
+    - Swagger with new Lambda 
+        - The swagger file needs to use the FunctionName mentioned in Lambda and refer it in the 
+        ARN structure.
+        
+## Serverless Frameworks
+- Simplifies development, deployment and monitoring
+- High level of abstraction
+- Single pane to monitor and troubleshoot
+- AWS serverless frameworks
+    - AWS SAM
+    - AWS CodeStar
+    - AWS Amplify
+    - AWS Chalice
+- Third party serverless frameworks
+    - Serverless Framework
+    - SPARTA
+    - Claudia.js
+    - Zappa
+    - APEX
+    
+## Serverless Architectures and Advanced Optimization Techniques
+- Optimization options:
+    - Code  
+    - Execution Environment
+    
+- Lambda code execution:
+    - Cold Start - Its the time between Lambda invoke and Lambda running
+        - Container comes up
+        - Loads the code
+    - Run code
+    - After Lambda done running, the container and some codes stay warm for certain time. So 
+    another Lambda invoke will make use of the existing Container, warm codes do not re-execute
+    (saving execution time) and some codes get executed again. so cold start much less on 
+    subsequent execution.
+    - What codes stay warm?
+        - The code under lambda handler and any function calls from it will always re-execute.
+        - The code at global scope(outside lambda handler) will stay warm. Eg., creating client 
+        object to sns,s3,loading environment variables,etc.
+        - We should not put all the code at global scope because the more code we put on global 
+        scope, cold start on first execution will be longer. Also Container goes down if Lambda 
+        not invoked subsequently for certain time. so we need to balance them.
+        - The code that fits in to global scope is the code that executes only once and be reused
+         for subsequent executions.
+         - The function invoked from lambda handler should not defined above the lambda handler 
+         because it falls into global scope and will be executed during code loading and executed
+         again by lambda handler. This is anti-pattern.
+- Lambda code optimization:    
+    - Don't load libraries that are not needed. Import required libraries from package rather 
+    than loading the entire package.
+    - Lazy loading of libraries - Load libraries during code execution based on some conditions.
+    - Separate Lambda handler(entry point) from core logic
+        - Use Lambda layers for duplicated logic
+    - Use Lambda functions to TRANSFORM, not to TRANSPORT
+        - API directly integrate with AWS Services
+        - SNS->Lambda->SQS  Vs SNS->SQS
+    - Dynamic logic via configuration
+        - Per function - Environment variables
+        - Across functions - AWS Parameter Store/Secrets Manager
+    - Read only what you need. Don't read everything and filter in Lambda.
+        - Properly indexed DB
+        - Use fine grained Queries
+        - Use Amazon S3 select to fetch only required objects.   
+    - Keep orchestration out of code - use step functions
+    
+- Optimizing Lambda Execution Environment
+    - How much memory and time needed for Lambda?
+        - Use tools to study the cold start time, initialization time and execution time of Lambda
+        - AWS X-ray needs to be enabled on Lambda
+        - Third party tools:
+            - Datadog
+            - Epsagon
+            - NodeSource
+            - IOPipe
+            - Thundra
+            - Lumigo
+    - Lambda memory and compute goes together. There is no option to select CPU units.
+        - Its not true that lower the memory allocated leads to lower cost. Its the combination of 
+        memory and time. Higher memory and lower time out, may lead to less cost. 
+        - Sometimes with increased memory, cost might increase. If performance increases 
+        significantly and cost increases slightly, its worth to spend.
+        - We need to define what's acceptable for our case.
+        - Use [aws-lambda-power-tuning](https://github.com/alexcasalboni/aws-lambda-power-tuning)
+    - Do we need to put functions in a VPC?
+        - Yes, if Lambda needs to access resources in VPC like RDS
+        - Yes, to restrict outbound access to Internet
+    - Do we need Sync everywhere?
+        - Lambda execution models
+          ![lambda-execution-models](images/lambda-execution-models.png)
+        - Separate Sync, Async components
+            - Example: GET Sync, POST Async
+        - Sending data to another system
+            - Do we need to send in realtime, is near realtime okay?
+            - Do we need response in the same call?
+            - API Vs topic/queue/stream
+    - Lambda Dead Letter Queues
+        - By default, a failed Lambda function which is invoked asynchronously is retried 2 times
+         and the event is discarded.
+        - If DLQ is ON, then the event is sent to DLQ after 2 retries
+    - Do we need APIs to expose Lambda?
+        - No, if Lambda is getting called from internal systems
+        - Lambda can be called from other services.
+    - Events - Don't invoke Lambda unnecessarily. Apply all logic outside Lambda before invoking 
+    the function. No need for if/else conditions to handle that logic in Lambda.
+        - S3 -> use specific prefix
+        - SNS -> Message filtering 
+        
+## AWS Well-Architected Framework - Five Pillars
+- Operational Excellence
+- Security
+- Reliability
+- Performance efficiency
+- Cost optimization
+
+### Serverless - General Design Principles
+- Function should be simple and follows SRP
+- Share nothing between invocations
+- Orchestrate using state machines
+- Design for failures and duplicate events
+- Use events to trigger transactions
+
+### Serverless Design Components
+- Compute Layer
+    - Manages requests from external systems
+    - Controlling access and ensuring requests are appropriately authorized
+    - Contains the runtime environment that your business logic will be deployed and executed
+    - Examples : Lambda, API Gateway, Step Functions
+- Data Layer
+    - Persistent storage
+    - Secure mechanism to store states that your business logic will need
+    - Provides a mechanism to trigger events in response to data changes
+    - Examples : S3, DynamoDB, Aurora Serverless
+- Messaging and Streaming Layer
+    - Manages communications between components
+    - Manages real-time analysis and processing of streaming data
+    - Examples : Kinesis, SNS
+- User Management and Identity Layer
+    - Provides identity, authentication and authorization for both external and internal 
+    customers of your workload's interfaces
+    - Examples: Cognito
+- Systems Monitoring and Deployment
+    - System visibility through metrics
+    - Defines how the workload changes are promoted
+    - Examples : CloudWatch, X-Ray
+- Edge Layer
+    - Manages the presentation layer and connectivity to external customers
+    - Provides an efficient delivery method to external customers residing in distinct 
+    geographical locations
+    - Examples : CloudFront  
+
+### Serverless Design Patterns
+- RESTFul service
+- Streaming service
+- Periodic job
+- Web application
+
+### When NOT to use Lambda
+- Always compare cost with EC2 using calculator
+    - Lambda price varies based on traffic, memory and time
+- Cold start in VPC
+    - If Lambda in VPC, then cold start attaches ENI(Elastic Network Interface) to Lambda which 
+    takes seconds. This has been improved and no more an issue. Refer
+    [improved-vpc-networking-for-aws-lambda-functions](https://aws.amazon.com/blogs/compute/announcing-improved-vpc-networking-for-aws-lambda-functions/)
+    - We can try to keep lambda warm using CloudWatch pings and algorithms
+    - For corner cases, ultra low SLA of APIs not achievable
+- Super heavy computing exceeding Lambda memory/time limit
+ 
+## AWS Lambda Operational Practices
+### Event-driven architectures
+-  Address some of the inherent challenges in building the complex systems commonly used in 
+modern organizations. 
+- Improves throughput, scale and extensibility , Replacing polling and webhooks with events, Reducing complexity
+- Common trade-offs - latency, eventual consistency, and handling asynchronous return values
+- Promotes the use of microservices, which are small, specialized applications performing a 
+narrow set of functions. 
+A well-designed, Lambda-based application is compatible with the principles of microservice architectures. 
+#### How Lambda fits into the event-driven paradigm
+- The main purpose of Lambda functions is to process events.
+- Most AWS services generate events, and many can act as an event source for Lambda. An event 
+could be custom-generated from another microservice.
+- An event triggering a Lambda function could be almost anything.
+- The event itself is a JSON object that contains information about what happened. Events are facts about a change in the system state, they are immutable, and the time when they happen is significant.
+- Event-driven applications create events that are observable by other services and systems, but the event producer is unaware of which consumers, if any, are listening.
+
+            

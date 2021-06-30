@@ -1,0 +1,26 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 's3-event-triggered-lambda
+
+  Sample SAM Template for s3-event-triggered-lambda
+
+  '
+Globals:
+  Function:
+    Timeout: 3
+Resources:
+  S3EventTriggeredLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://lambda-demo-test-1/6c486c411c4434c582034868cecbc71d
+      Handler: app.lambdaHandler
+      Runtime: nodejs14.x
+      Events:
+        S3Event:
+          Type: S3
+          Properties:
+            Bucket:
+              Ref: S3Bucket
+            Events: s3:ObjectCreated:*
+  S3Bucket:
+    Type: AWS::S3::Bucket

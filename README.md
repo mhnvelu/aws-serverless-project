@@ -1041,8 +1041,16 @@ table.
 ### Event-driven architectures
 -  Address some of the inherent challenges in building the complex systems commonly used in 
 modern organizations. 
-- Improves throughput, scale and extensibility , Replacing polling and webhooks with events, Reducing complexity
-- Common trade-offs - latency, eventual consistency, and handling asynchronous return values
+- Benefits
+    - Replacing polling and webhooks with events
+    - Improves throughput
+    - Improving scalability and extensibility
+    - Reducing complexity
+- Common trade-offs
+    - Variable latency
+    - Eventual consistency
+    - Returning values to callers
+    - Debugging across services and functions
 - Promotes the use of microservices, which are small, specialized applications performing a 
 narrow set of functions. 
 A well-designed, Lambda-based application is compatible with the principles of microservice architectures. 

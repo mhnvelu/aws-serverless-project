@@ -1048,9 +1048,30 @@ modern organizations.
     - Reducing complexity
 - Common trade-offs
     - Variable latency
+        - Event-driven applications communicate across networks. This design introduces variable 
+        latency.
+        - Monolithic applications can almost always be optimized for lower latency at the expense
+         of scalability and availability.
+        - The serverless services in AWS are highly available, meaning that they operate in more than one Availability Zone in a Region. In the event of a service disruption, services automatically fail over to alternative Availability Zones and retry transactions. As a result, instead of a transaction failing, it may be completed successfully but with higher latency.
+        - Workloads that require consistent low-latency performance, such as high-frequency trading applications in banks or submillisecond robotics automation in warehouses, are not good candidates for event-driven architecture.
     - Eventual consistency
+        - More complex to process transactions, handle duplicates, or determine the exact overall
+         state of a system.
+        - DynamoDB can provide strongly consistent reads, sometimes at a higher latency.
+        - Services can use Amazon RDS for features needing ACID properties.
+        - Event-based architectures are usually designed around individual events instead of large batches of data.
+        - In serverless, real-time event processing is preferred to batch processing in event-driven systems, replacing a batch with many smaller incremental updates. While this can make workloads significantly more available and scalable, it also makes it more challenging for events to have awareness of other events.
     - Returning values to callers
+        - Caller services do not wait for requests from other services before continuing with 
+        other work. This is a fundamental characteristic of event-driven architectures that enables scalability and flexibility. This means that passing return values or the result of a workflow is often more complex than in synchronous execution flows.
+        - Most Lambda invocations in production systems are asynchronous, responding to events from services like Amazon S3 or Amazon SQS. In these cases, the success or failure of processing an event is often more important than returning a value.
+        - For interactive workloads, the design patterns are [refer here](https://aws.amazon.com/blogs/compute/managing-backend-requests-and-frontend-notifications-in-serverless-web-apps/)
     - Debugging across services and functions
+        - With different systems and services passing events, it is often not possible to record and reproduce the exact state of multiple services when an error occurs. Since each service and function invocation has separate log files, it can be more complicated to determine what happened to a specific event that caused an error.
+        - For Successful debugging approach in event-driven systems:
+            - a robust logging system is critical, and this is provided across AWS services and embedded in Lambda functions by Amazon CloudWatch.
+            - every event has a transaction identifier that is logged at each step throughout a transaction, to help when searching for logs.
+            - Finally, it’s highly recommended to automate the parsing and analysis of logs by using a debugging and monitoring service like AWS X-Ray. This can consume logs across multiple Lambda invocations and services, making it much easier to pinpoint the root cause of issues.
 - Promotes the use of microservices, which are small, specialized applications performing a 
 narrow set of functions. 
 A well-designed, Lambda-based application is compatible with the principles of microservice architectures. 
@@ -1062,4 +1083,120 @@ could be custom-generated from another microservice.
 - The event itself is a JSON object that contains information about what happened. Events are facts about a change in the system state, they are immutable, and the time when they happen is significant.
 - Event-driven applications create events that are observable by other services and systems, but the event producer is unaware of which consumers, if any, are listening.
 
-            
+#### Design Principles
+The goal is to develop systems that are:
+- Reliable
+- Durable
+- Secure
+- Performant
+- Cost-efficient
+
+##### Use services instead of custom code
+- Lambda can be integrated with many AWS services.
+- We can implement well-established, common patterns in distributed architectures using AWS Services
+
+| Patterns      | AWS Services | 
+| :---        |    :---   |  
+|  Queue     | Amazon SQS        |
+|  Event Bus  |   Amazon EventBridge      |     
+| Pub/Sub   |  Amazon SNS      |       
+| Orchestration  |  Amazon Step Functions       |   
+| API   | Amazon API Gateway     |    
+| Event Streams   | Amazon Kinesis  |      
+
+- These services are designed to integrate with Lambda and you can use infrastructure as code (IaC) to create and discard resources in the services.
+##### Understanding the level of abstraction
+- The Lambda service limits your access to the underlying operating systems, hypervisors, and hardware running your Lambda functions. 
+- Your code should assume no knowledge of how Lambda is architected and assume no hardware affinity.
+- The integration of other services with Lambda is managed by AWS with only a small number of 
+configuration options that are exposed.
+##### Implementing statelessness in functions
+- When building Lambda functions, you should assume that the environment exists only for a single invocation.
+- It should not rely on any existing data structures or temporary files, or any internal state 
+that would be managed by multiple invocations.
+- Lambda provides an initializer before the handler where you can initialize database connections, libraries, and other resources. Since execution environments are reused where possible to improve performance, you can amortize the time taken to initialize these resources over multiple invocations. However, you should not store any variables or data used in the function within this global scope.
+##### Lambda function design
+- Prefer many, shorter functions over fewer, larger ones
+- Lambda functions should be highly specialized, concise and generally result in shorter 
+executions. 
+- No knowledge or expectations of the overall workflow or volume of transactions.
+- Any global-scope constants that change infrequently should be implemented as environment variables to allow updates without deployments. 
+- Any secrets or sensitive information should be stored in AWS Systems Manager Parameter Store or AWS Secrets Manager
+##### Building for on-demand data instead of batches
+- Traditional systems are designed to run periodically and process batches of transactions that 
+have built up over time.
+- In Lambda-based applications, the custom processing should be triggered by every event, allowing the service to scale up concurrency as needed, to provide near-real time processing of transactions.
+- If the limitations of external systems force you to use a scheduler, you should generally schedule for the shortest reasonable recurring time period.
+- Functions can be redesigned to process single events and reduce the amount of time needed to 
+process.
+##### Orchestration
+- Workflows that involve branching logic, different types of failure models and retry logic typically use an orchestrator to keep track of the state of the overall execution. Avoid using Lambda functions for this purpose, since it results in tightly coupled groups of functions and services and complex code handling routing and exceptions.
+- Use AWS Step Functions to manage orchestration.
+##### Developing for retries and failures
+- AWS serverless services, including Lambda, are fault-tolerant and designed to handle failures.
+- In the case of Lambda, if a service invokes a Lambda function and there is a service disruption, Lambda invokes your function in a different Availability Zone.
+- If your function throws an error, the Lambda service retries your function.
+- Functions should be designed to be idempotent.
+- A Lambda function implements idempotency typically by using a DynamoDB table to track recently processed identifiers to determine if the transaction has been handled previously. The DynamoDB table usually implements a Time To Live (TTL) value to expire items to limit the storage space used.
+- For failures within the custom code of a Lambda function, the service offers a number of features to help preserve and retry the event, and provide monitoring to capture that the failure has occurred. Using these approaches can help you develop workloads that are resilient to failure and improve the durability of events as they are processed by Lambda functions.
+
+#### Anti-patterns in Lambda-based applications
+##### The Lambda monolith
+- In many applications migrated from traditional servers, EC2 instances or Elastic Beanstalk 
+applications, developers “lift and shift” existing code. Frequently, this results in a single Lambda function that contains all of the application logic that is triggered for all events. For a basic web application, a monolithic Lambda function would handle all API Gateway routes and integrate with all necessary downstream resources.
+- This approach has several drawbacks:
+    - Large Package size
+    - Hard to enforce least privilege
+    - Harder to upgrade
+    - Harder to maintain
+    - Harder to reuse code
+    - Harder to test
+- Solution: 
+    - Decompose the monolithic Lambda function into individual microservices, mapping a single 
+    Lambda function to a single, well-defined task. In this simple web application with a few API endpoints, the resulting microservice-based architecture can be based upon the API Gateway routes.
+    - Use strategies like [strangler pattern](https://paulhammant.com/2013/07/14/legacy-application-strangulation-case-studies/)
+##### Lambda as orchestrator
+- Implementing complex workflow logic in a Lambda function can result in ‘spaghetti code’ that’s 
+difficult to read, understand, and maintain.
+- Very fragile in production systems
+- The complexity is compounded if you must handle error handling, retry logic, and inputs and outputs processing. These types of orchestration functions are an anti-pattern in Lambda-based applications.
+- Instead, use AWS Step Functions to orchestrate these workflows
+- Step Functions is designed for workflows within a bounded context or microservice
+- Amazon EventBridge coordinates state changes across multiple services and and simplifies orchestration between microservices.
+##### Recursive patterns that cause run-away Lambda functions
+- Generally, the service or resource that invokes a Lambda function should be different to the service or resource that the function outputs to. Failure to manage this can result in infinite loops.
+- For example, a Lambda function writes an object to an S3 object, which in turn invokes the same
+ Lambda function via a put event. The invocation causes a second object to be written to the bucket, which invokes the same Lambda function.
+- This anti-pattern has the potential to consume more resources. Press the “Throttle” button in 
+the Lambda console to scale the function concurrency down to zero and break the recursion cycle.
+- Recursive loops also exists in SNS, SQS, DynamoDB, and other services.
+-  If we  need a Lambda function to write data back to the same resource that invoked the 
+function, we need ensure that:
+    - Use reserved concurrency
+    - Use CloudWatch monitoring and alarming
+    - To avoid this, use two buckets, or configure the trigger to only apply to a prefix used for incoming objects.
+##### Lambda functions calling Lambda functions
+- It introduces several problems in a distributed serverless architecture.
+    - Cost - pay for the duration of an invocation
+    - Error handling - become much more complex. Either errors are thrown to parent functions to handle at the top-level function, or functions require custom handling
+    - Tight coupling - the availability of the entire workflow is limited by the slowest function.
+    - Scaling - concurrency of all functions in the chain must be equal. In a busy system, this 
+    uses more concurrency than would otherwise be needed.
+- There are two common approaches to avoid this pattern.
+    - Use an SQS queue between Lambda functions. If a downstream process is slower than an 
+    upstream process, the queue durably persists messages and decouples the two functions.
+    - Use AWS Step Functions
+##### Synchronous waiting within a single Lambda function
+- Within a single Lambda, ensure that any potentially concurrent activities are not scheduled synchronously. For example, a Lambda function might write to an S3 bucket and then write to a DynamoDB table
+- The wait states are compounded because the activities are sequential. If the tasks are 
+independent, they can be run in parallel, which results in the total wait time being set by the longest-running task.
+- In cases where the second task depends on the completion of the first task, you may be able to 
+reduce the total waiting time and the cost of execution by splitting the Lambda functions.  This approach minimizes the total wait time in the Lambda function executions.
+## Serverless Microservices Architecture patterns
+![microservices-serverless-patterns](images/microservices-serverless-patterns.png)  
+
+
+
+
+*NOTE : Images in this repository have been taken from various paid courses. I have used it for 
+study purpose only. No commercial purpose.

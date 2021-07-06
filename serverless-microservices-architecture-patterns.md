@@ -209,3 +209,169 @@ business logic to handle it
 
 #### Implementing API Composition Pattern
 ![aws-serverless-api-composition-pattern](images/aws-serverless-api-composition-pattern.png)
+
+### Event Sourcing Pattern
+#### Database Persistence Challenges:
+- DB stores only the current state
+- No audit trail or history of CRUD operations
+- Lack of generic support to push event changes to other services
+
+#### Synchronization Persistence Challenges:
+- Table growth for shared DB - scale vertically and horizontally
+- Indices, Clustering and Load balancing
+- Avoid single of point of failure for master - HA
+
+#### What is Event Sourcing
+- The fundamental idea of event sourcing is that of ensuring every change to the state of an 
+application is captured in an event object and that these events are themselves are stored in the
+ sequence they were applied for the same lifetime as the application state itself
+- Action or state change is an event
+- Event is immutable
+- Events can only be appended to the sequence or event store. This avoids many concurrency 
+issues, it makes sure that services accessing it are non-blocking and can scale out to many.
+- We can recreate the current state or aggregate views by replaying events
+- Communicates data changes between services
+- The event store can contain - |event_id|event_type|entity_type|entity_id|event_data|
+##### Benefits
+- Preserves history of events and log all changes
+- Recreate different projections or views on data
+- Notify other subscriber services of data changes
+##### Drawbacks 
+- Learning curve compared to CRUD
+- Additional complexity of message-based applications and evolving events. A simple shared DB is 
+easy to implement than event sourcing and event store
+- Querying and maintaining an event store is different programming and administrative paradigm
+
+### CQRS Pattern (Command Query Responsibility Segregation)
+- CQRS is simply the creation of 2 objects where there was previously only one. The separation 
+occurs based upon whether the methods are a command or query. Its essentially the division of 
+read and write methods
+- The command are the methods that takes a new event and does not return any data
+- The query are the methods that return data with no side effect.
+
+#### CQRS Architecture
+![CQRS-Architecture](images/CQRS-Architecture.png)
+
+##### Benefits
+- Separate domain model for Command and Query
+- Flexible, Non-blocking
+- Polygot
+##### Drawbacks
+- Eventually consistent
+- Side effect of event replay
+- Complex for simpler products over CRUD
+- Identify correct bounded contexts or services
+
+### Architectures of the Serverless Event Sourcing Pattern
+#### Event sourcing using Kinesis Streams
+![event-sourcing-using-kinesis](images/event-sourcing-using-kinesis.png)
+
+##### Benefits
+- Kinesis streams invokes the Lambda with data batches in sequence. Concurrency of Lambda depends
+ on number of shards in Kinesis
+ - At least once delivery semantic
+ - Highly scalable, data from up to 7 days can be replayed
+
+##### Drawbacks
+- Manual scaling
+- Possible duplicate records, for example, producer retries - consumer needs to handle duplicates
+
+#### Event sourcing using DynamoDB
+![event-sourcing-using-dynamodb](images/event-sourcing-using-dynamodb.png)
+
+##### Benefits
+- DynamoDB streams invokes the Lambda with data batches in sequence.
+- Rich update expression set, remove, add, delete possible de-duplicate data as written
+- Auto scaling and do not pay for streams
+- Replay stream upto 24 hours
+
+##### Drawbacks
+- Streams data are only held for 24 hours
+- Expensive at scale for write capacity
+- Auto scaling at web scale could lead to Lambda throttles
+- 256KB record size
+
+#### Event sourcing using SQS
+![event-sourcing-using-sqs](images/event-sourcing-using-sqs.png)
+- SNS -> Lambda  => Lambda will be invoked per event from SNS which is not scalable way of doing 
+things. So, SNS -> SQS -> Lambda
+
+##### Benefits
+- FIFO and content based de-duplication
+- Auto scaling
+- Messages stay upto 14 days if not deleted
+
+##### Drawbacks
+- One message can be consumed by only one consumer.
+- No ability to replay
+- 256KB message size
+- Once deleted, not able to replay
+
+#### Comparison
+![comparison-serverless-event-souring-pattern](images/comparison-serverless-event-souring-pattern.png)
+
+### Architectures of Serverless CQRS pattern
+- 4 different patterns available
+#### CQRS using Aurora Serverless
+![CQRS-using-Aurora-serverless](images/CQRS-using-Aurora-serverless.png)
+
+##### Benefits
+- SQL query
+- Auto scaling disk
+- Read replicas provided with cluster
+
+##### Drawbacks
+- Not strictly speaking CQRS as no event processor
+- No ability to replay stream from Aurora
+- No direct integration with API Gateway
+
+#### CQRS using DynamoDB
+![CQRS-using-DynamoDB](images/CQRS-using-DynamoDB.png)
+
+##### Benefits
+- DynamoDB streams invokes the lambda with data batches in sequence
+- Rich update expression set, remove, add, delete possible to de-duplicate data as written 
+- Auto scaling and do not pay for streams
+- Global Secondary index or lambda projected or aggregate table
+
+##### Drawbacks
+- Streams data are only held for 24 hours
+- Expensive at scale for write capacity
+- Auto scaling at web scale could lead to Lambda throttles
+- 256KB record size
+
+#### CQRS using SQS
+![CQRS-using-SQS](images/CQRS-using-SQS.png)
+
+##### Benefits
+- FIFO 
+- Exactly once processing via 5 minute content based de-duplication
+- Option to use SNS to further fan out
+
+##### Drawbacks
+- No replay once message deleted
+- One message can be consumed by only one consumer
+
+#### CQRS using Kinesis
+![CQRS-using-Kinesis](images/CQRS-using-Kinesis.png)
+
+##### Benefits
+- Replay events
+- Huge writes capacity at 1000/s per shard
+- Built-in integration with API gateway and lambda
+- Many consumers
+
+##### Drawbacks
+- Data is not stored permanently and stored only for 7 days. But we can store in S3 and replay later
+- Manual scaling - increase the shards
+- Read capacity - number of consumers increase if shards increase
+
+### Securing Event Streams and Queries
+#### IAM Roles and Policies
+![iam-roles-and-policies](images/iam-roles-and-policies.png)
+
+- Kinesis streams to Lambda security
+- DynamoDB streams to Lambda security
+- SQS to Lambda security
+- Firehose to S3 security
+- API Gateway to DynamoDB security

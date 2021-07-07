@@ -375,3 +375,112 @@ things. So, SNS -> SQS -> Lambda
 - SQS to Lambda security
 - Firehose to S3 security
 - API Gateway to DynamoDB security
+
+## Serverless Monitoring and Observability Patterns
+- Why Monitor?
+    - Runtime behaviour to make sure services are running as expected
+    - Diagnose and understand problems
+    - Performance monitoring
+    - Security
+    - 100s or 1000s of microservices
+    - Cascade of microservice failures
+    - Governance, Compliance, Operational Auditing and Risk Auditing
+    
+### System and Application Metrics Pattern
+- Response time
+- Error rates
+- CPU
+- Memory
+- Disk
+- Real-time reporting and metrics
+
+![system-and-application-metrics-pattern](images/system-and-application-metrics-pattern.png)
+
+#### Implementing Serverless System and Application Metrics Pattern
+- Using Amazon CloudWatch
+    - Dashboards
+    - Alarms
+    - Events
+    - Logs
+    - Metrics
+    - Custom Metrics
+
+
+### Health Check Pattern
+- Service running
+- Check able to accept request
+- Terminate and reroute the traffic if not responding
+
+![health-check-endpoint-pattern](images/health-check-endpoint-pattern.png)
+
+#### Implementing Serverless Health Check Pattern
+- Using Amazon CloudWatch, Lambda, Custom metrics, Alarm and Alert
+![implementing-serverless-health-check-pattern](images/implementing-serverless-health-check-pattern.png)
+
+### Centralized Logging Pattern
+- Web or app logs
+- One location to search
+- Setup alerts and triggers
+- Exception stack traces
+- Requests and Responses
+- Important to Standardize
+- Typical open source stack ELK
+
+![centralized-logging-pattern](images/centralized-logging-pattern.png)
+
+#### Implementing Serverless Centralized Logging Pattern
+- CloudWatch Logs
+    - Centralizes all logging
+    - EC2 or container mciroservice requires an CloudWatch Logs agent
+    - API gateway supports JSON as custom logging. Built-in logging integration.
+    - Lambda has built-in logging integration
+    - Always log the JSON formatted logs, its easy to search and query using rich filters
+    
+![cloudwatch-logs](images/cloudwatch-logs.png)
+
+### Audit Logging Pattern
+- Activity related to actions across the infrastructure
+- Access logs
+- User action history
+- Can use event sourcing
+
+#### Implementing Serverless Audit Logging Pattern
+- Using AWS CloudTrail
+- Triggering Lambda from CloudTrail events
+- CloudTrail
+    - Logs and continuously monitors account activity
+    - All actions across your AWS infrastructure
+    - Keeps event history and action taken 
+    
+![aws-cloudtrail](images/aws-cloudtrail.png)   
+![cloudtrail-event-pattern](images/cloudtrail-event-pattern.png)  
+
+### Distributed Tracing Pattern
+- Challenging to understand end-to-end request from logs
+- CorrelationId as request passes through the services
+- Trace calls across multiple system boundaries
+- Monitor bottlenecks and slowdowns 
+- Zipkin is an open source Distributed Tracing library
+
+#### Implementing Serverless Distributed Tracing Pattern
+- Using AWS X-Ray
+![aws-x-ray-distributed-pattern](images/aws-x-ray-distributed-pattern.png)
+
+### Creating Serverless Discovery Service and Catalogue
+#### Serverless Discovery Service and Catalogue Requirements
+- Automatically discover new endpoints, lambdas and resources
+- Expose a catalogue via a REST API
+- Detect new additions and changes
+- Serverless
+
+#### Serverless Discovery Service Architecture
+![serverless-discovery-service-architecture](images/serverless-discovery-service-architecture.png)
+
+#### Serverless Catalog Architecture 
+![serverless-catalog-architecture](images/serverless-catalog-architecture.png)
+
+
+## Serverless CI/CD Pipelines
+
+
+

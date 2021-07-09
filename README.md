@@ -1195,8 +1195,18 @@ reduce the total waiting time and the cost of execution by splitting the Lambda 
 ## Serverless Microservices Architecture patterns
 ![microservices-serverless-patterns](images/microservices-serverless-patterns.png)  
 
+Refer [serverless-microservices-architecture-patterns](serverless-microservices-architecture-patterns.md)
 
 
+## Lambda Best Practices
+- Performance
+- Scalability
+- Security
+- Resilience
+- Observability
+- Cost
+
+Refer [lambda-best-practices](lambda-best-practices.md)
 
 *NOTE : Images in this repository have been taken from various paid courses. I have used it for 
 study purpose only. No commercial purpose.

@@ -480,7 +480,145 @@ things. So, SNS -> SQS -> Lambda
 ![serverless-catalog-architecture](images/serverless-catalog-architecture.png)
 
 
-## Serverless CI/CD Pipelines
+## Serverless Microservices at Scale in Production
+- Functional requirement defines what system does
+- Non-Functional requirement defines how the system is
+    - Throughput
+    - Durability
+    - Availability
+    - Scalability
+    
+- Concurrent and average requests
+- Request payload size and length
+- SLA API requirements
+- Strong or weak consistency
+- Disaster recovery
 
+### Alternatives to Serverless microservices and AWS Lambda
+- Containers and open source
+- Very low latency with strong consistency <50ms
+- Very large number of concurrent request/s
+- Large code deployments or payloads
+- Need to keep complex state in application
+- Maintain long running connection
+- Need fixed costs
+- Avoid AWS tie in and host your own open source alternatives
+- Docker, K8s, Amazon ECS, Amazon EKS, Amazon Fargate
+ 
+### Use Serverless microservices and AWS Lambda
+- API latency >50ms
+- Backend batch procesing < 5mins
+- Weak consistency API gateway caching
+- Quick deployment, HA, limited DevOps experience in-house
+- Focus on core business logic
+- Pay As You Go costs
+- Using AWS already
 
+### Functions as a Service Options
+- Open Source FaaS - Kubeless, Apache OpenWhisk, Fission and so on
+- Benefits:
+    - K8s, Docker based
+    - No Vendor lock-in
+    - Multi-cloud
+- Drawbacks:
+    - No built event sources
+    - Not serverless
+    - Lack of maturity and many contenders
+- Cloud-Provider FaaS - AWS Lambda, Azure function, Google functions, IBM OpenWisk
+- Benefits:
+    - Built event sources
+    - Security and managed infrastructure
+    - AWS Lambda most mature
+- Drawbacks:
+    - Vendor lock-in
+    - Closed source - limitations on source code package
+    - Hard to predict costs
 
+### Estimating Serverless Stack costs
+- API gateway
+    - Concurrent and average requests
+    - Request payload size and length
+    - Expensive for high requests rate
+    - Use only if needed
+    - Don't use it with Kinesis stream, DynamoDB stream, CloudWatch stream
+    - API calls cost, cache cost, data transfer out cost
+- Lambda
+    - Number of executions
+    - Execution time
+    - Memory size
+    - External data transfers
+- DynamoDB
+    - Write/Read capacity units
+    - Strong or Weak consistency
+    - Data storage
+    - DynamoDB streams
+- Aurora Serverless
+    - Aurora capacity units
+    - Storage costs
+    - I/O costs
+- Kinesis costs
+    - Shard hour (1MB/s Ingress and 2MB/s Egress)
+    - PUT Payload units
+    - Extended data retention
+- Monitoring costs
+    - Login as root
+    - Billing Dashboard
+    - Cost explorer
+    - Budgets, Reports, Cost allocation tags
+    
+### Database and Event Streaming Scalability
+- Scaling DynamoDB
+    - Shape table for queries - use hash id and range
+    - Global Secondary Index
+    - Create a Batch API for query and batch calls
+    - Amazon DynamoDB Accelerator(DAX) for caching
+    - DAX is 10x performance
+    
+- Scaling Aurora Serverless
+    - Use read-replica endpoint in Lambda for READ
+    - Add table index
+    - Query and Schema optimization
+    - Load test
+    
+- Scaling Kinesis
+    - Minimum 2 shards in production
+    - Consider number of consumers, read performance is 2MB/s per shard
+    - Load test stream processing of lambdas by replaying the full production stream
+    
+### Web Scale Best practices
+#### Serverless Active monitoring and alerting
+- CloudWatch metrics alarms
+- CloudWatch logs monitoring
+- X-ray for application and service requests
+
+![serverless-active-monitoring-and-alerting](images/serverless-active-monitoring-and-alerting.png)
+
+#### API gateway at Scale
+- Use caching and throttling
+- Monitor for 4xx and 5xx errors in metrics and logs
+
+#### Multi-region serverless microservices
+- Use Amazon Route53 to route traffic between different regions
+
+![multi-region-serverless-microservices](images/multi-region-serverless-microservices.png)
+
+#### Threat protection at Scale
+- DDoS, application attacks, bad bots
+- Impact on availability, financial, reputation and security
+- AWS shield standard(free, protects from DDoS when we use CloudFront and Route53) and advanced()
+- AWS WAF
+
+#### Optimized Content Delivery
+- CloudFront to speed up distribution of web content
+- S3 static content via CloudFront
+- Lambda@edge
+
+#### Configurations for Running Lambda at Scale
+- Limit Lambda concurrency
+- Lambda fan-out without API gateway internally
+- Pre-warm the Lambda to reduce launch time - setup CloudWatch trigger
+- Minimize logging
+- NodeJs or Python lowest request time compared to Java and C#
+- Declare variables and objects outside lambda_handler()
+- Keep code small
+- Code defensively and handle failures

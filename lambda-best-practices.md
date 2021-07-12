@@ -191,8 +191,113 @@ function will use only one connection and so we will end up in reaching max conn
 between Lambda function and RDS cluster, pools and shares the DB connections 
 
 ## Security
+### Principle of Least Privilege
+- Every component must be able to access only the information and resources that are necessary 
+for its legitimate purpose
+- IAM permissions - be specific for Action, Resource. Don't use *
+- Policy per function
+- IAM role for relevant functions
+- Tool for Lambda security [puresec](https://github.com/puresec) 
+- [Serverless architectures Security Top 10](https://github.com/puresec/sas-top-10)
+- Don't put sensitive details in env variables
+
+### Secret Management
+- Storage of secrets
+    - Secrets Manager
+    - SSM Parameter Store
+    - We need:
+        - Encryption at rest and in-flight
+        - Role based access
+        - Cost-efficient
+            - Secrets Manager - $0.40 per secret per month for storage, $0.05 per 10K API calls
+            - SSM Parameter Store
+                - Standard - free for storage, no charge for standard throughput, $0.05 per 10K 
+                API calls for higher throughput
+                - Advanced - $0.05 per advanced parameter per month, $0.05 per 10K API calls
+        - Scalable
+            - Secrets Manager - 1500 requests/s
+            - SSM Parameter Store - Default is 40/s. But the limit can be increased to 1000/s
+        - Fully managed   
+        - Built-in rotation
+            - Secrets Manager - Yes
+            - SSM Parameter Store - No
+            
+- Distribution of Secrets
+    - Secrets should never be in plain text in env variables
+    - ![access-secrets-from-sm-ssm-parameter-store](images/access-secrets-from-sm-ssm-parameter-store.png)
+    - Use the JS middleware [middy](https://github.com/middyjs/middy)
+    
+### API Gateway
+- By default, we get 10K/s as throttling limit and Burst limit as 5K/s per region
+- All the API resources/methods share this limit in that region
+- Attacker an easily attack 1 single endpoint and take down all of other APIs in the entire 
+    region
+- To mitigate this, we need to configure these limits per endpoint
+- Use Cognito for user facing API's
+- Use IAM permissions for internal API's
+- API key's should be used for SaaS solution to implement rate limiting per client
+    
+### Server-side Encryption
+- RDS, DynamoDB, S3, SQS, SNS, Kinesis supports encryption
+- S3 - SSE-S3, SSE-KMS, SSE-C. Prefer to use SSE-KMS because the caller needs to have permission 
+the CMK in KMS which is used to decrypt the S3 object
 
 ## Resilience
+### Multi-region, active-active
+![multi-region-active-active-1](images/multi-region-active-active-1.png)
+
+### Upstream is Multi-region, active-active
+![upstream-multi-region-active-active](images/upstream-multi-region-active-active.png)
+
+- Having active-active using serverless components leads to little overhead when compared to 
+other solutions using VMs, containers. we would spend money for unused resources incase of VMs, 
+containers
+
+[static-stability-using-availability-zones](https://lumigo.io/blog/amazon-builders-library-in-focus-5-static-stability-using-availability-zones/)
+
+### Handling Partial Failures
+- Kinesis and Lambda
+    - By default, the retry happens until success or record expiration time. This is not 
+the correct if the data is a poison where the function gets stuck processing the poison message 
+repeatedly.
+    - So we need to configure Retry attempts, Max age of record, On-failure destination(either SNS or
+ SQS), Split batch on error
+ 
+- SQS and Lambda
+-[sqs-lambda-polling](images/sqs-lambda-polling.png)
+- AWS operates a cluster of pollers and it fetches a batch of messages and deliver to our function
+- If our function returns success, then the poller deletes the messages in SQS
+- If our function returns error, the poller doesn't delete the messages in SQS even some of the 
+messages would have been processed successfully from that batch 
+- All the messages in that batch are available again after the visibility time-out.
+- After max number of retries, the messages are sent to DLQ
+![sqs-lambda-error-handling](images/sqs-lambda-error-handling.png)
+
+- SQS and Lambda handling failure modes [sqs-and-lambda-the-missing-guide-on-failure-modes](https://lumigo.io/blog/sqs-and-lambda-the-missing-guide-on-failure-modes/)
+
+### Standardizing Error Handling
+- How do we standardize error handling across our APIs?
+    - Use the JS middleware [middy](https://github.com/middyjs/middy)
+    - Create a middleware covering below points and distribute across teams. So error handling 
+    will be same across all services
+        - Log error message
+        - Classify error type, can it be tried, etc
+        - Return error code, request-id,etc
+        - Track error code metric by Type
+        - Implement fallbacks
+
+### Lambda Destinations
+- Async triggers - SNS, SES, S3, Eventbridge
+- Stream based invocation - kinesis, DynamoDB streams
+- Not for Sync invocations - API Gateway, SQS
+- Destination Type - SNS, SQS, lambda, eventBridge
+- Conditions - On failure, On Success
+- Failure destination record contains - request event, response payload, error stack, request 
+context
+- But Lambda DLQ - contains only the request event. DLQ supports only SNS or SQS
+- Prefer Lambda destinations over DLQ.
+- On Success destination - Simple Lambda->Lambda invocation. For complex workflows, use Step 
+functions
 
 ## observability
 

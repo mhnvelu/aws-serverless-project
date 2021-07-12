@@ -622,3 +622,6 @@ things. So, SNS -> SQS -> Lambda
 - Declare variables and objects outside lambda_handler()
 - Keep code small
 - Code defensively and handle failures
+
+## Serverless Microservices Pattern for AWS by Jeremy Daly
+[serverless-microservice-patterns-for-aws](https://www.jeremydaly.com/serverless-microservice-patterns-for-aws/)

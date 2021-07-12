@@ -5,7 +5,8 @@
 ## Performance
 ### Tuning function memory
 - Pay As You Go model
-- Charged based on the **number of requests** for your functions and the **duration**, the time it
+- Charged based on the **number of requests** for your functions and the **duration**, the time 
+it takes to execute
 - Lambda **counts a request** each time it starts executing in response to an event notification or invoke call, including test invokes from the console
 - **Duration is calculated** from the time your code begins executing until it returns or otherwise terminates, rounded up to the nearest 1ms* 
 takes for your code to execute. The price depends on the amount of memory you allocate to your function. In the AWS Lambda resource model, you choose the amount of memory you want for your function, and are allocated proportional CPU power and other resources. An increase in memory size triggers an equivalent increase in CPU available to your function.
@@ -299,6 +300,98 @@ context
 - On Success destination - Simple Lambda->Lambda invocation. For complex workflows, use Step 
 functions
 
-## observability
+## Observability
+- Use alarms to alert that something is wrong not necessarily what is wrong
+### Lambda alarms
+   - Alarm for ConcurrentExecutions around 80%, 
+   - Alarm for IteratorAge - The time Kinesis received an event and the time Lambda received that 
+event should be in ms. If its a significant value, then we need to raise an alarm. It can happen 
+the downstream is slow or Lambda got some errors
+   - Alarm for DeadLetterErrors - For events from Async sources like SNS, EventBridge, we need to 
+configure DLQ. This metric conveys that the Lambda has issues in sending failure event to DLQ
+   - Alarm for Throttles
+   - Alarm for Error Count and Success rate  %
+
+### API Gateway alarms
+- p90/95/99 latency
+- success rate %
+- 4xx rate %
+- 5xx rate %
+
+### SQS alarms
+- Message age
+
+### Step functions
+- Failed count
+- Throttle count
+- Timed out count
+
+### Logging
+- Use Lambda's built-in log collection
+- Use structured logging using JSON [8-handy-tips-consider-logging-json](https://www.loggly.com/blog/8-handy-tips-consider-logging-json/)
+- Traditional loggers are heavy for Lambda. We need to use super light weight loggers to write 
+JSON to standard out. 
+- Refer [dazn-lambda-powertools](https://github.com/getndazn/dazn-lambda-powertools)
+- Use WARN level for debugging
+- Its not easy to query to CloudWatch logs. so the logs can be streamed to other services.
+![send-cloudwatch-logs-to-external-servvice](images/send-cloudwatch-logs-to-external-servvice.png)
+
+- Refer [auto-subscribe-log-group-to-arn](https://serverlessrepo.aws.amazon.com/applications/arn:aws:serverlessrepo:us-east-1:374852340823:applications~auto-subscribe-log-group-to-arn)
+- Use auto-subscribe-log-group-to-arn because whenever we introduce new functions it creates new 
+log group. we no need to manually subscribe every time.
+
+### Distributed Tracing
+- Refer [lambda-distributed-tracing-demo](https://github.com/theburningmonk/lambda-distributed-tracing-demo)
+- AWS X-Ray
+- Lumigo
+- Epsagon
+- Thundra
+
+### Lambda PowerTools(nodejs)
+- Uses apiGatewayRequestID as co-relation id because apiGatewayRequestID is returned to client 
+app and it can used by client to report an issue back to us on a specific request
 
 ## Cost
+### Tuning memory allocation
+- Use Power tuning tool - find a balance between performance and cost
+
+### Cost monitoring tools
+- AWS Billing Dashboard
+    - Cost allocation tags
+    - Cost explorer
+    - Great for macro level trends and decisions
+- [cloudzero](https://www.cloudzero.com/)
+- Lumigo
+
+### Beware of peripheral lambda costs
+![serverless-components-cost](images/serverless-components-cost.png)
+- Refer [aws-data-transfer-costs](https://github.com/open-guides/og-aws#aws-data-transfer-costs)
+
+### CloudWatch logs cost
+- CloudWatch charges for Data ingestion and storage
+- Don't send debug data in production
+- Don't keep the logs forever. Refer [auto-set-log-group-retention](https://serverlessrepo.aws.amazon.com/applications/arn:aws:serverlessrepo:us-east-1:374852340823:applications~auto-set-log-group-retention)
+
+### SNS Vs SQS Vs EventBridge Vs Kinesis
+- ![sns-sqs-eventbridge-kinesis-cost](images/sns-sqs-eventbridge-kinesis-cost.png)
+- Always consider the throughput of the application and it will have huge impact on the cost
+- Services that pay by uptime are orders of magnitude **cheaper** when running at high scale
+
+### API Gateway Service Proxies (as a last resort)
+- Use it for scalability and performance reasons
+- Use it when you are concerned about cold start overhead or burst limit
+- API Gateway costs more than Lambda. so consider ALB as well which is charged on hourly basis
+- API Gateway HTTP APIs is 70% cheaper than REST API
+
+### API Gateway REST API Vs HTTP API Vs ALB
+- At high scale, cost of REST API > HTTP API > ALB
+
+### Batching
+- Only relevant at high scale
+- Large batches is cost efficient but adds more delay since the incoming messages are buffered 
+for longer time. If we need to process the events in real time, then use Kinesis Data Stream
+- If we don't want to process the data in real time and want to maximize the savings by 
+processing them in batches, then use Kinesis Firehose
+
+### Lambda Provisioned concurrency
+- When there is sustained hi-throughput, Provisioned concurrency can reduce Lambda invocation cost

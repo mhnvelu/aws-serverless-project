@@ -142,3 +142,48 @@ stepFunctions:
             Type: Pass
             InputPath: $[0]
             End: true
+
+    workflow-with-map:
+      name: workflow-with-map
+      definition:
+        StartAt: MapState
+        States:
+          MapState:
+            Type: Map
+            MaxConcurrency: 1
+            End: true
+            Iterator:
+              StartAt: WaitState
+              States:
+                WaitState:
+                  Type: Wait
+                  SecondsPath: $.delay
+                  Next: PassState
+                PassState:
+                  Type: Pass
+                  InputPath: $.delay
+                  End: true
+    workflow-with-map-2:
+      name: workflow-with-map-2
+      definition:
+        StartAt: MapState
+        States:
+          MapState:
+            Type: Map
+            End: true
+            ItemsPath: $.inputData
+            Parameters:
+              delay.$: $$.Map.Item.Value
+              groupId.$: $.groupId
+              executionId.$: $$.Execution.Id
+            Iterator:
+              StartAt: WaitState
+              States:
+                WaitState:
+                  Type: Wait
+                  SecondsPath: $.delay
+                  Next: PassState
+                PassState:
+                  Type: Pass
+                  InputPath: $.delay
+                  End: true

@@ -65,7 +65,7 @@
     workflow to reason about and debug. we can't implement workflow level timeout as well. If you
     have such a system now, it should be moved to Step Functions
 
-### 7 Types of States
+### 8 Types of States
 
 #### Task
 
@@ -226,7 +226,7 @@
 #### Succeed
 
 - Terminates the State Machine execution successfully
-- Task, Pass, Wait and Parallel - let us terminate the execution when they are complete but not
+- Task, Pass, Wait and Parallel - Allows to terminate the execution when they are complete but not
   the Choice state, in which case we might need to have a state that represents a successful
   termination for the execution. This is the purpose of Succeed State
 - ```json
@@ -247,6 +247,17 @@
       "Cause": "Supplied Input is Invalid"
     }
   ```
+
+#### Map
+
+- [dynamic-parallelism](https://aws.amazon.com/blogs/aws/new-step-functions-support-for-dynamic-parallelism/)
+- Step Functions supports a new `Map` state type for dynamic parallelism
+- To configure a Map state, you define an `Iterator`, which is a complete sub-workflow. When a Step Functions execution enters a Map state, it will iterate over a JSON array in the state input. For each item, the Map state will execute one sub-workflow, potentially in parallel. When all sub-workflow executions complete, the Map state will return an array containing the output for each item processed by the Iterator.
+- Control concurrency - Map executes by adding the `MaxConcurrency` field. The default value is 0, which places no limit on parallelism and iterations are invoked as concurrently as possible. A `MaxConcurrency` value of 1 has the effect to invoke the Iterator one element at a time, in the order of their appearance in the input state, and will not start an iteration until the previous iteration has completed execution.
+- One way to use the new Map state is to leverage fan-out or scatter-gather messaging patterns in your workflows
+- Map supports `Retry and Catch` fields to handle service and custom exceptions. You can also apply Retry and Catch to states inside your Iterator to handle exceptions. If any Iterator execution fails because of an unhandled error or by transitioning to a Fail state, the entire Map state is considered to have failed and all its iterations are stopped. If the error is not handled by the Map state itself, Step Functions stops the workflow execution with an error.
+
+### Notifications in Standard state machine
 
 ### Managing Execution State
 

@@ -114,3 +114,31 @@ stepFunctions:
                             Resource:
                               Fn::GetAtt: [double, Arn]
                             End: true
+
+    workflow-with-pass:
+      name: workflow-with-pass-states
+      definition:
+        StartAt: ParallelState
+        States:
+          ParallelState:
+            Type: Parallel
+            Next: Head
+            Branches:
+              - StartAt: AddZ
+                States:
+                  AddZ:
+                    Type: Pass
+                    Result: 100
+                    ResultPath: $.z
+                    End: true
+              - StartAt: OverrideX
+                States:
+                  OverrideX:
+                    Type: Pass
+                    Result: 100
+                    ResultPath: $.x
+                    End: true
+          Head:
+            Type: Pass
+            InputPath: $[0]
+            End: true

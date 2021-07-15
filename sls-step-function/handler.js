@@ -16,6 +16,10 @@ module.exports.double = async (n) => {
   return n * 2;
 };
 
+module.exports.doubleBigNumber = async (n) => {
+  return n * 2;
+};
+
 class NumberIsTooBig extends Error {
   constructor(n) {
     super(`${n} is too big`);

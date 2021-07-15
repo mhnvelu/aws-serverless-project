@@ -12,17 +12,26 @@ provider:
 functions:
   hello:
     handler: handler.hello
+  add:
+    handler: handler.add
+  double:
+    handler: handler.double
 
 stepFunctions:
   stateMachines:
-    hello:
-      name: hello-step-function
+    simple-maths:
+      name: simple-maths
       definition:
-        Comment: Hello World Example
-        StartAt: SayHello
+        Comment: Simple Maths Example
+        StartAt: add
         States:
-          SayHello:
+          add:
             Type: Task
             Resource:
-              Fn::GetAtt: [hello, Arn]
+              Fn::GetAtt: [add, Arn]
+            Next: double
+          double:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [double, Arn]
             End: true

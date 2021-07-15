@@ -314,8 +314,11 @@
      ]
    }
   ```
-- MaxAttempts - default is 3. If set 0, it will never retry
+
+- `MaxAttempts` - default is 3. If set 0, it will never retry
 - Each `Retrier` in `Retry` keeps track of its own retry count
+- The Error object returned from `Retrier` after the `MaxAttempts` and when there is a `Catch` for that Error, then the Error object becomes the `Output` of previous State and `Input` to the Next state mentioned in `Catch`.
+- The Error object returned from `Retrier` after the `MaxAttempts` and when there is no `Catch`, then the Error object becomes the `Exception` of previous State and `Output` of previous State is Empty
 
 ### Service Limits
 

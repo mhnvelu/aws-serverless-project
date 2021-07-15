@@ -57,3 +57,60 @@ stepFunctions:
             Resource:
               Fn::GetAtt: [doubleBigNumber, Arn]
             End: true
+
+    workflow-with-parallelism:
+      name: workflow-parallel-state
+      definition:
+        Comment: WorkFlow with Parallel States
+        StartAt: ParallelState
+        States:
+          ParallelState:
+            Type: Parallel
+            End: true
+            Branches:
+              - StartAt: Add
+                States:
+                  Add:
+                    Type: Task
+                    Resource:
+                      Fn::GetAtt: [add, Arn]
+                    Next: Double
+                  Double:
+                    Type: Task
+                    Resource:
+                      Fn::GetAtt: [double, Arn]
+                    End: true
+              - StartAt: PickX
+                States:
+                  PickX:
+                    Type: Pass
+                    InputPath: $.x
+                    Next: DoubleValueOfX
+                  DoubleValueOfX:
+                    Type: Task
+                    Resource:
+                      Fn::GetAtt: [double, Arn]
+                    End: true
+              - StartAt: WaitFor5Seconds
+                States:
+                  WaitFor5Seconds:
+                    Type: Wait
+                    Seconds: 5
+                    End: true
+              - StartAt: NestedParallelState
+                States:
+                  NestedParallelState:
+                    Type: Parallel
+                    End: true
+                    Branches:
+                      - StartAt: PickY
+                        States:
+                          PickY:
+                            Type: Pass
+                            InputPath: $.y
+                            Next: DoubleValueOfY
+                          DoubleValueOfY:
+                            Type: Task
+                            Resource:
+                              Fn::GetAtt: [double, Arn]
+                            End: true

@@ -115,6 +115,7 @@
 
 - Wait before transitioning to next state
 - Set the static value
+- Can wait for max 1 year
 
 - ```json
       "waitStateUsingSeconds":{
@@ -196,7 +197,12 @@
 
 - Performs tasks in Parallel
 - The state will complete when all of the branches have finished or one of them have failed
+- - If any of the branches ends in a failure, it immediately "Cancels" the whole Parallel State, even if some of the branches are already in-progress/waiting. The states are marked as `Cancelled`
 - If any of the branches ends in a failure, then the whole Parallel state would end in Failed state
+- We can transition to the states within a specific branch of Parallel State. We can't transition from a branch to a state in another branch of Parallel State
+- We can't duplicate the state names across the state machine. So state name should be unique.
+- The output of Parallel State is combined output of all branches and collected into an array and follows the same order as the branches
+- Parallel states can be nested
 
 - ```json
   "parallelState": {

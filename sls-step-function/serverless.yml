@@ -1,0 +1,28 @@
+service: sls-step-function
+frameworkVersion: "2"
+
+plugins:
+  - serverless-step-functions
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  lambdaHashingVersion: 20201221
+
+functions:
+  hello:
+    handler: handler.hello
+
+stepFunctions:
+  stateMachines:
+    hello:
+      name: hello-step-function
+      definition:
+        Comment: Hello World Example
+        StartAt: SayHello
+        States:
+          SayHello:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [hello, Arn]
+            End: true

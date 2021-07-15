@@ -323,7 +323,39 @@ errors
 - If execution needs to be passed >32KB, then store the data in S3, DynamoDB,etc and pass the key
  to the state machine. The Lambda can fetch using the key 
 
+### Monitoring and Debugging
+- CloudWatch metrics available and set alarms
+- List of executions for a given state machine is available in Step Functions console
+- Visualization tool, Execution Event History
+- In CloudWatch Events, create a rule to automate an action when the execution failed or timeout or 
+succeeded
+
+### Express workflows
+- Operates at higher throughput and 
+- Pros
+    - Cost
+    - Error Handling
+- Cons
+    - No Audit
+    - No Visual tool
     
+- [standard-vs-express](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-standard-vs-express.html)
+
+### Step Functions now supports AWS PrivateLink
+- A Lambda function can be configured to access VPC resources. Even the Subnets and SGs can be 
+selected for the function to use to setup the VPC configurations
+- When we enable VPC for the function, it loses internet access by default. If Lambda function 
+requires internet access, make sure the VPC has NAT Gateway and the SG associated with function 
+has OutBound connections allowed
+- AWS Private Link(VPC Endpoint) enables the services inside the VPC to connect to Step Functions 
+without leaving the VPC. All the traffic are inside AWS network. The  VPC endpoint is an ENI and so 
+Security Group can be configured on it. This SG should allow inbound connections from Source SG to
+ which the Lambda function has been configured.
+- If Lambda still has issues in accessing the Step Functions, check NACL rules in the VPC. It 
+should be configured to allow both inbound and outbound traffic
+- Inorder to keep the traffic inside the AWS network, we can use VPC endpoint over NAT Gateway
+
+
     
 
  

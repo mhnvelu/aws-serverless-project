@@ -433,3 +433,11 @@
         DataType: String
         StringValue: bar
   ```
+
+  ### CallBacks in Step Function
+
+  - For Activities in Step Function, we should have Task Poller implemented by us
+  - With CallBacks, we can complete the Task and send success response to State Machine using `sendTaskSuccess(output,taskToken)`
+  - The CallBack feature is available for Lambda, ECS, Fargate, SQS, SNS, Step Functions
+  - This feature is available by adding a suffix `.waitForTaskToken` to the `Resource`
+  - We can perform operations in a event-driven way

@@ -1,0 +1,16 @@
+{
+  "name": "sls-step-function-call-backs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "handler.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "serverless-pseudo-parameters": "^2.6.0",
+    "serverless-step-functions": "^2.32.0"
+  }
+}

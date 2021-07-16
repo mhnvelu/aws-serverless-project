@@ -1,0 +1,41 @@
+service: sls-step-function-aws-services-integration
+frameworkVersion: "2"
+
+plugins:
+  - serverless-step-functions
+  - serverless-pseudo-parameters
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  lambdaHashingVersion: 20201221
+stepFunctions:
+  stateMachines:
+    sf-sns:
+      name: sf-sns
+      definition:
+        Comment: Example to integrate sf and sns
+        StartAt: Publish SNS Message
+        States:
+          Publish SNS Message:
+            Type: Parallel
+            End: true
+            Branches:
+              - StartAt: sendStaticMessage
+                States:
+                  sendStaticMessage:
+                    Type: Task
+                    End: true
+                    Resource: arn:aws:states:::sns:publish
+                    Parameters:
+                      TopicArn: arn:aws:sns:#{AWS::Region}:#{AWS::AccountId}:stepfunction-test
+                      Message: '{"answer" : 100}'
+              - StartAt: sendDynamicMessage
+                States:
+                  sendDynamicMessage:
+                    Type: Task
+                    End: true
+                    Resource: arn:aws:states:::sns:publish
+                    Parameters:
+                      TopicArn: arn:aws:sns:#{AWS::Region}:#{AWS::AccountId}:stepfunction-test
+                      Message.$: $.inputMessage

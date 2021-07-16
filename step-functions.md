@@ -111,6 +111,8 @@
   }
   ```
 
+![sf-pass-state](images/sf-pass-state.png)
+
 #### Wait
 
 - Wait before transitioning to next state
@@ -172,26 +174,27 @@
 - Using And
 
 - ```json
-      "choiceState": {
-        "Type": "Choice",
-        "Choices": [
-          {
-            "And": [
-              {
-                "Variable": "$.name",
-                "StringEquals": "Neo"
-              },
-              {
-                "Variable": "$.isRescued",
-                "BooleanEquals": true
-              }
-            ],
-            "Next": "BlueTask"
-          }
-        ],
-        "Default": "RedTask"
-      }
+        "choiceState": {
+          "Type": "Choice",
+          "Choices": [
+            {
+              "And": [
+                {
+                  "Variable": "$.name",
+                  "StringEquals": "Neo"
+                },
+                {
+                  "Variable": "$.isRescued",
+                  "BooleanEquals": true
+                }
+              ],
+              "Next": "BlueTask"
+            }
+          ],
+          "Default": "RedTask"
+        }
   ```
+  ![sf-choice-state](images/sf-choice-state.png)
 
 #### Parallel
 
@@ -205,23 +208,24 @@
 - Parallel states can be nested
 
 - ```json
-  "parallelState": {
-    "Type": "Parallel",
-    "Branches": [
-      {
-        "StartAt": "Add",
-        "States": {
-          "Add": {
-            "Type": "Task",
-            "Resource": "ARN",
-            "End": "true"
+    "parallelState": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "Add",
+          "States": {
+            "Add": {
+              "Type": "Task",
+              "Resource": "ARN",
+              "End": "true"
+            }
           }
         }
-      }
-    ],
-    "Next": "RedTask"
-  }
+      ],
+      "Next": "RedTask"
+    }
   ```
+  ![sf-parallel-state](images/sf-parallel-state.png)
 
 #### Succeed
 
@@ -257,7 +261,7 @@
 - One way to use the new Map state is to leverage fan-out or scatter-gather messaging patterns in your workflows
 - Map supports `Retry and Catch` fields to handle service and custom exceptions. You can also apply Retry and Catch to states inside your Iterator to handle exceptions. If any Iterator execution fails because of an unhandled error or by transitioning to a Fail state, the entire Map state is considered to have failed and all its iterations are stopped. If the error is not handled by the Map state itself, Step Functions stops the workflow execution with an error.
 
-### Notifications in Standard state machine
+![sf-map-state](images/sf-map-state.png)
 
 ### Managing Execution State
 
@@ -297,40 +301,42 @@
 - States may report errors with other names, which must not begin with the prefix `States`
 
 - ```json
-   "TaskState": {
-     "Type": "Task",
-     "Resource": "ARN",
-     "Next": "AnotherTask",
-     "TimeoutSeconds": "300",
-     "ResultPath": "$.n",
-     "Retry": [
-       {
-         "ErrorEquals": [
-           "ErrorA",
-           "ErrorB"
-         ],
-         "IntervalSeconds": 1,
-         "BackoffRate": 2.0,
-         "MaxAttempts": 2
-       },
-       {
-         "ErrorEquals": [
-           "ErrorC"
-         ],
-         "IntervalSeconds": 5,
+     "TaskState": {
+       "Type": "Task",
+       "Resource": "ARN",
+       "Next": "AnotherTask",
+       "TimeoutSeconds": "300",
+       "ResultPath": "$.n",
+       "Retry": [
+         {
+           "ErrorEquals": [
+             "ErrorA",
+             "ErrorB"
+           ],
+           "IntervalSeconds": 1,
+           "BackoffRate": 2.0,
+           "MaxAttempts": 2
+         },
+         {
+           "ErrorEquals": [
+             "ErrorC"
+           ],
+           "IntervalSeconds": 5,
 
-       }
-     ],
-     "Catch": [
-       {
-         "ErrorEquals": [
-           "States.ALL"
-         ],
-         "Next": "GoToFailHandlerTask"
-       }
-     ]
-   }
+         }
+       ],
+       "Catch": [
+         {
+           "ErrorEquals": [
+             "States.ALL"
+           ],
+           "Next": "GoToFailHandlerTask"
+         }
+       ]
+     }
   ```
+
+  ![sf-error-state](images/sf-error-state.png)
 
 - `MaxAttempts` - default is 3. If set 0, it will never retry
 - Each `Retrier` in `Retry` keeps track of its own retry count
@@ -401,6 +407,8 @@
 - The output of State Machine is not available as API Gateway response.
 - Refer [serverless-step-functions-api-gateway](https://www.serverless.com/plugins/serverless-step-functions#api-gateway)
 
+![sf-api-gateway](images/sf-api-gateway.png)
+
 ### SNS & SQS and Step Functions
 
 - SNS, SQS is supported by Task Type
@@ -423,6 +431,8 @@
     Message: '{"answer" : 100}'
   ```
 
+  ![sf-sns-example](images/sf-sns-example.png)
+
   ```yaml
   Resource: arn:aws:states:::sqs:sendMessage
   Parameters:
@@ -434,6 +444,8 @@
         StringValue: bar
   ```
 
+  ![sf-sqs-example](images/sf-sqs-example.png)
+
   ### CallBacks in Step Function
 
   - For Activities in Step Function, we should have Task Poller implemented by us
@@ -441,3 +453,55 @@
   - The CallBack feature is available for Lambda, ECS, Fargate, SQS, SNS, Step Functions
   - This feature is available by adding a suffix `.waitForTaskToken` to the `Resource`
   - We can perform operations in a event-driven way
+    ![callback-example](images/callback-example.JPG)
+
+### Nested Workflows
+
+- Fire and Forget - Parent SF Fires and Forgets the Nested SF. Parent SF doesn't wait for completion of Nested SF. Nested SF needs to take care of its Retry, Error Handling. Any errors in Nested SF doesn't affect the execution of Parent SF
+- Synchronous - Parent SF starts and waits for the completion of Nested SF. Parent SF can capture the output, errors of Nested SF and retry. Use the suffix `.sync` for `Resource`
+- Callback:
+  - Use the suffix `.waitForTaskToken` for `Resource`
+    ![step-function-nested-callbacl-pattern](images/step-function-nested-callbacl-pattern.png)
+
+### Blue-Green Deployments
+
+- State Machine executions are Immutable. Once its running, its going to continue with the original definition even if we update the definition. The problem is when an execution (using original definition) refers a Lambda function(assume always latest in `Resource`) in a Task and both definition, Lambda function are updated, if the Lambda brings a breakable change, then the ongoing execution would fail. To avoid this, we can use specific version of a lambda in `Resource`
+- The Serverless Framework provides an attribute `useExactVersion` : true which can be used in State Machine configuration
+
+### Best Practices
+
+- Use Timeouts to avoid getting stuck - Task level, State Machine level TimeoutSeconds
+- Store data in S3 instead of passing large payloads
+- Handle Service Exceptions - Lambda, other services, make things more robust by handling exceptions
+- When using Activities, make sure to use multiple Activity Pollers. If few Pollers are used, then they might not be able to catch up the new tasks and tasks might timeout
+- Setup alerts on Step Functions metrics like ExecutionsTimedOut, ExecutionsFailed, ExecutionsAborted, ExecutionsThrottled
+
+### Design Patterns
+
+#### try-catch
+
+- Retry, Catch can be applied to Task, Parallel, Map states
+- Wrap multiple states in a single Catch clause to make it easier to apply common error handling logic
+- Use Parallel state as wrapper for many states and have a single Catch at Parallel State
+
+#### recursion
+
+- If we need to perform a long running tasks, then Lambda timeout will not support it. So Lambda can execute partially and complete the remaining tasks recursively.
+- Its better to execute long running tasks on ECS or Fargate instead of this pattern. The output of ECS and Fargate should be stored in DB and the next state in State Machine can fetch the output from DB
+
+#### sagas
+
+- Managing failures in distributed microservices transaction
+- In State Machine, for each action(State) we can have an opposite compensating action
+
+#### de-dupe
+
+- Dont want to process the same input more than once
+- StartExecution action is Idempotent. If StartExecution is called with the same name and input as a running execution, the call will succeed and return the same response as the original request. If the execution is closed or if the input is different, we receive 400 ExecutionAlreadyExists error, then its duplicate and we can ignore
+- Have a consistent way to derive the execution name from the input
+- Execution names can be reused after 90 days
+
+#### Semaphore
+
+- Need to limit number of concurrent state machine executions
+- If a state in the flow needs to have limit on concurrency, then introduce semaphore, say a counter in DynamoDB table. While acquiring the semaphore, increment the counter conditionally(if count <3). After performing the action, release the semaphore and atomically decrement the counter in DynamoDB table

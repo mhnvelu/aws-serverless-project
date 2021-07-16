@@ -394,3 +394,9 @@
 - When SF(say, sf1 is added in serverless.yml) is deployed, it gets a unique ARN. The exeecutions of sf1 shows the Definitions of sf1 as well
 - When new SF(say, sf2 is added and sf1 is removed from serverless.yml) is deployed, sf2 gets a unique ARN but it removes the sf1 and its executions which was deployed previously.
 - When SF(say,sf2) is modified and deployed, sf2 retains the previous ARN but gets newly modified definition
+
+### API Gateway and Step Functions
+
+- State Machine can be invoked from API Gateway using POST method. The payload of POST method is the input to State Machine.
+- The output of State Machine is not available as API Gateway response.
+- Refer [serverless-step-functions-api-gateway](https://www.serverless.com/plugins/serverless-step-functions#api-gateway)

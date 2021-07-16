@@ -187,3 +187,17 @@ stepFunctions:
                   Type: Pass
                   InputPath: $.delay
                   End: true
+    workflow-invoked-by-api-gateway:
+      name: workflow-invoked-by-api-gateway
+      events:
+        - http:
+            path: /hello
+            method: POST
+      definition:
+        StartAt: APIGatewayTrigger
+        States:
+          APIGatewayTrigger:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [hello, Arn]
+            End: true

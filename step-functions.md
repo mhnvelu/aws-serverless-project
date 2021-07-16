@@ -401,23 +401,35 @@
 - The output of State Machine is not available as API Gateway response.
 - Refer [serverless-step-functions-api-gateway](https://www.serverless.com/plugins/serverless-step-functions#api-gateway)
 
-### SNS and Step Functions
+### SNS & SQS and Step Functions
 
-- SNS is supported by Task Type
+- SNS, SQS is supported by Task Type
 - The value of `Resource` attribute for AWS services is per the pattern
 
   ```
   arn:partition:states:region:account:servicename:APIname
 
   For SNS, arn:aws:states:::sns:publish
+  For SQS, arn:aws:states:::sqs:sendMessage
+
   ```
 
 - Configure the `Parameters` section for the AWS services to connect. The attributes of `Parameters` section is AWS Services specific.
-  `````yaml
-            Resource: arn:aws:states:::sns:publish
-            Parameters:
-              TopicArn: arn:aws:sns:#{AWS::Region}:#{AWS::AccountId}:stepfunction-test
-              Message: '{"answer" : 100}'
-  ````
 
-  `````
+  ```yaml
+  Resource: arn:aws:states:::sns:publish
+  Parameters:
+    TopicArn: arn:aws:sns:#{AWS::Region}:#{AWS::AccountId}:stepfunction-test
+    Message: '{"answer" : 100}'
+  ```
+
+  ```yaml
+  Resource: arn:aws:states:::sqs:sendMessage
+  Parameters:
+    QueueUrl: https://sqs.#{AWS::Region}.amazonaws.com/#{AWS::AccountId}/stepfunction-test-queue
+    MessageBody.$: $.inputMessage
+    MessageAttributes:
+      foo:
+        DataType: String
+        StringValue: bar
+  ```

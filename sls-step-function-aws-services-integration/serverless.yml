@@ -30,6 +30,10 @@ stepFunctions:
                     Parameters:
                       TopicArn: arn:aws:sns:#{AWS::Region}:#{AWS::AccountId}:stepfunction-test
                       Message: '{"answer" : 100}'
+                      MessageAttributes:
+                        foo:
+                          DataType: String
+                          StringValue: bar
               - StartAt: sendDynamicMessage
                 States:
                   sendDynamicMessage:
@@ -39,3 +43,43 @@ stepFunctions:
                     Parameters:
                       TopicArn: arn:aws:sns:#{AWS::Region}:#{AWS::AccountId}:stepfunction-test
                       Message.$: $.inputMessage
+                      MessageAttributes:
+                        foo:
+                          DataType: String
+                          StringValue: bar
+    sf-sqs:
+      name: sf-sqs
+      definition:
+        Comment: Example to integrate sf and sqs
+        StartAt: Publish SQS Message
+        States:
+          Publish SQS Message:
+            Type: Parallel
+            End: true
+            Branches:
+              - StartAt: sendStaticMessage
+                States:
+                  sendStaticMessage:
+                    Type: Task
+                    End: true
+                    Resource: arn:aws:states:::sqs:sendMessage
+                    Parameters:
+                      QueueUrl: https://sqs.#{AWS::Region}.amazonaws.com/#{AWS::AccountId}/stepfunction-test-queue
+                      MessageBody: '{"answer" : 100}'
+                      MessageAttributes:
+                        foo:
+                          DataType: String
+                          StringValue: bar
+              - StartAt: sendDynamicMessage
+                States:
+                  sendDynamicMessage:
+                    Type: Task
+                    End: true
+                    Resource: arn:aws:states:::sqs:sendMessage
+                    Parameters:
+                      QueueUrl: https://sqs.#{AWS::Region}.amazonaws.com/#{AWS::AccountId}/stepfunction-test-queue
+                      MessageBody.$: $.inputMessage
+                      MessageAttributes:
+                        foo:
+                          DataType: String
+                          StringValue: bar

@@ -1192,6 +1192,105 @@ function, we need ensure that:
 independent, they can be run in parallel, which results in the total wait time being set by the longest-running task.
 - In cases where the second task depends on the completion of the first task, you may be able to 
 reduce the total waiting time and the cost of execution by splitting the Lambda functions.  This approach minimizes the total wait time in the Lambda function executions.
+
+#### Points to consider
+- Separating functionality into different functions can provide better performance and also make 
+an application more maintainable and scalable
+- function should perform a single task in the flow of data across AWS services in your 
+microservice. if the functional task is too small, this may incur additional latency in the application and overhead in managing large numbers of functions. The exact scope of a function is determined by the use case
+-  Lambda function retain state between invocations in DynamoDB table is an ideal way to retain 
+since it provides low-latency data access and can scale with the Lambda service, EFS provides low-latency access to file system storage
+
+### Application Design
+#### Understanding Quotas
+- Service Quotas exist in all AWS services and consist of hard limits, which you cannot change, and soft limits, which you can request increases
+- By default, all new accounts are assigned a quota profile. customers request increases for their accounts as they start to expand usage of their applications
+- Different AWS services have different quotas. Quotas may apply at *Region level, or account 
+level, and may also include time-interval restrictions (for example, requests per second)*
+- Once the serverless architecture is designed, we can compare the different quotas across services and find any potential issues.
+- Examples:
+    - API Gateway has a default throttle limit of 10,000 requests per second. Lambda has a 
+    default concurrency limit of 1,000.
+    - Handling payload sizes in different services -  application moving a payload from API Gateway to Lambda to SQS, API Gateway supports payloads up to 10 Mb, while Lambda’s payload limit is 6 Mb and the SQS message size limit is 256 Kb. In this example, you could instead store the payload in an S3 bucket instead of uploading to API Gateway, and pass a reference token across the services.
+- Load testing your serverless application also allows you to monitor the performance of an application
+- Refer for load testing [artillery](https://artillery.io/), [gatling](https://gatling.io/)
+- Using multiple AWS accounts for managing quotas,  dedicating workloads to their own specific account. This prevents quotas from being shared with other workloads or non-production resources. Using AWS Organizations, you can centrally manage the billing, compliance, and security of these accounts. 
+
+#### Scaling and concurrency in Lambda
+- All AWS accounts start with a default concurrent limit of 1000 per Region. This is a soft limit that you can increase by submitting a request 
+
+##### On-demand scaling
+- For an initial burst of traffic, your cumulative concurrency in a Region can reach between 500 and 3000 per minute, depending upon the Region. After this initial burst, functions can scale by an additional 500 instances per minute. If requests arrive faster than a function can scale, or if a function reaches maximum capacity, additional requests will fail with a throttling error (status code 429).
+##### Provisioned Concurrency scaling
+- The unreserved capacity pool is used by all on-demand Lambda functions. When a function is invoked, it draws from this pool. If unreserved capacity reaches zero, new invocations for any Lambda function in an account will fail.
+- Provisioned Concurrency is a Lambda feature that prepares concurrent execution environments in 
+advance of invocations.
+- Provisioned Concurrency solves 2 issues:
+    - if expected traffic arrives more quickly than the default burst capacity, Provisioned Concurrency can ensure that your function is available to meet the demand
+    - if you have latency-sensitive workloads that require predictable double-digit millisecond latency, Provisioned Concurrency solves the typical cold start issues associated with default scaling.
+- A function typically uses one of these two features(Provisioned or Reserved) but not both at the same 
+time.
+##### Using service integrations and asynchronous processing
+- Synchronous requests from services like API Gateway require immediate responses. In many cases, these workloads can be rearchitected as asynchronous workloads. In this case, API Gateway uses a service integration to persist messages in an SQS queue durably. A Lambda function consumes these messages from the queue, and updates the status in a DynamoDB table. Another API endpoint provides the status of the request by querying the DynamoDB table
+![lambda-api-gateway-sqs--async-pattern](images/lambda-api-gateway-sqs--async-pattern.png)
+
+##### Reserved concurrency
+- Lambda functions in a single AWS account in one Region share the concurrency limit. If one function exceeds the concurrent limit, this prevents other functions from being invoked by the Lambda service. You can set reserved capacity for Lambda functions to ensure that they can be invoked even if the overall capacity has been exhausted. Reserved capacity has two effects on a Lambda function:
+    - The reserved capacity is deducted from the overall capacity for the AWS account in a given Region. The Lambda function always has the reserved capacity available exclusively for its own invocations.
+    - The reserved capacity restricts the maximum number of concurrency invocations for that 
+    function. *Synchronous requests* arriving in excess of the reserved capacity limit will fail 
+    with a throttling error.
+- You can also use reserved capacity to throttle the rate of requests processed by your workload. For Lambda functions that are invoked asynchronously or using an internal poller, such as for S3, SQS, or DynamoDB integrations, reserved capacity limits how many requests are processed simultaneously.
+- Reserved capacity on a Lambda function also acts as a maximum capacity value. Raising the soft limit on total concurrency does not affect this behavior. If you need a function with reserved capacity to process more traffic, you can update the reserved capacity value, which effectively increases the maximum throughput of your function.
+
+#### Choosing and managing runtimes in Lambda functions
+- Developers must take action if their preferred runtime version is no longer supported by the 
+maintaining organization. 
+- Deprecation dates are driven by each runtime’s maintaining organization. Generally, AWS allows you to continue running functions on runtime versions for a period of time after the official runtime deprecation. You will receive emails from AWS if you have functions affected by an upcoming deprecation.
+
+##### Runtimes and performance
+- Python and Node.js are both fast to initialize and offer reasonable overall performance.
+- Java is much slower to initialize but can be extremely fast once running.
+- Go can be extremely performant for both start-up and execution.
+
+##### Multiple runtimes in single applications
+-  Multiple runtimes across multiple functions. This enables you to choose the best runtime for 
+the task of the function.
+- Node.js - Lambda function that transforms JSON between services
+- Python - handling data processing 
+##### Managing AWS SDKs in Lambda functions
+- The Lambda service also provides AWS SDKs for your chosen runtime. These enable you to interact with AWS services using familiar code constructs.
+- The bundled SDK version changes typically do not impact the functionality or performance
+- To lock an SDK version and make it immutable, it’s recommended that you create a Lambda layer with a specific version of an SDK and include this in your deployment package. Additionally, packaging a function as a container image also locks the SDK version in the image.
+#### Networking and VPC configurations
+- Lambda functions always run inside VPCs owned by the Lambda service. These VPCs are not visible to customers, the configurations are maintained automatically, and monitoring is managed by the service.
+- Lambda functions have access to the public internet. This is not the case after they have been configured with access to one of your VPCs. If you continue to need access to resources on the internet, set up a NAT instance or Amazon NAT Gateway. Alternatively, you can also use VPC endpoints to enable private communications between your VPC and supported AWS services.
+- The high availability of the Lambda service depends upon access to multiple Availability Zones within the Region where your code runs. When you create a Lambda function without a VPC configuration, it’s automatically available in all Availability Zones within the Region. When you set up VPC access, you choose which Availability Zones the Lambda function can use. As a result, to provide continued high availability, ensure that the function has access to at least two Availability Zones.
+- ENIs are an exhaustible resource and there is a soft limit of 350 ENIs per Region
+- Most serverless services can be used without further VPC configuration, while most instance-based services require VPC configuration
+#### Comparing Lambda invocation modes
+- Synchronous invocation
+    - CLI, ALB, API Gateway, Cognito, Lex, Alexa, API Gateway, CloudFront, Kinesis Data Firehouse
+    - well suited for short-lived Lambda functions
+    - API Gateway has a 29-second integration timeout, so a Lambda function running for more than 29 seconds will not return a value successfully. 
+    - In synchronous invocations, if the Lambda function fails, retries are the responsibility of 
+    the trigger
+- Asynchronous invocation
+    - S3, SNS, SES, CF, CW logs, CW events, Codecommit, CodePipeline, Config, IoT
+    - The caller continues with other work and cannot receive a return value from the Lambda 
+    function.
+    - The function can send the result to a destination, configurable based on success or failure.
+    - The internal queue between the caller and the function ensures that messages are stored durably. The Lambda service scales up the concurrency of the processing function as this internal queue grows.
+    - If an error occurs in the Lambda function, the retry behavior is determined by the Lambda service.
+- Polling invocation
+    - DynamoDB streams, Kinesis, SQS
+#### Controlling traffic flow for server-based resources
+- While Lambda can scale up quickly in response to traffic, many non-serverless services cannot. If your Lambda functions interact with those services downstream, it’s possible to overwhelm those services with data or connection requests.
+- The Amazon RDS Proxy service is built to solve the high-volume use-case. It pools the connections between the Lambda service and the downstream Amazon RDS database. This means that a scaling Lambda function is able to reuse connections via the proxy. As a result, the relational database is not overwhelmed with connections requests from individual Lambda functions.
+- For other downstream server-based resources, APIs, or third-party services, it’s important to know the limits around connections, transactions, and data transfer. If your serverless workload has the capacity to overwhelm those resources, use an SQS queue to decouple the Lambda function from the target. This allows the server-based resource to process messages from the queue at a steady rate. The queue also durably stores the requests if the downstream resource becomes unavailable.
+
+####
+
 ## Serverless Microservices Architecture patterns
 ![microservices-serverless-patterns](images/microservices-serverless-patterns.png)  
 

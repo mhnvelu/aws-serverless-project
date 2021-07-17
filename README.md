@@ -1289,7 +1289,119 @@ the task of the function.
 - The Amazon RDS Proxy service is built to solve the high-volume use-case. It pools the connections between the Lambda service and the downstream Amazon RDS database. This means that a scaling Lambda function is able to reuse connections via the proxy. As a result, the relational database is not overwhelmed with connections requests from individual Lambda functions.
 - For other downstream server-based resources, APIs, or third-party services, it’s important to know the limits around connections, transactions, and data transfer. If your serverless workload has the capacity to overwhelm those resources, use an SQS queue to decouple the Lambda function from the target. This allows the server-based resource to process messages from the queue at a steady rate. The queue also durably stores the requests if the downstream resource becomes unavailable.
 
-####
+### Lambda Security
+#### Understanding the Lambda execution environment
+- When your functions are invoked, the Lambda service runs your code inside an execution environment.
+- Execution environments are run on hardware virtualized virtual machines (MicroVMs) which are dedicated to a single AWS account.
+- Execution environments are never shared across functions and MicroVMs are never shared across AWS accounts. 
+- A single execution environment may be reused by subsequent function invocations.
+#### Applying the principles of least privilege
+- Lambda is fully integrated with IAM, allowing you to control precisely what each Lambda function can do within the AWS Cloud. 
+- Resource policy:
+    - The event source uses a resource policy that grants permission to invoke the Lambda function
+- Execution role:
+    - The Lambda service uses an execution role to constrain what the function is allowed to do
+    
+![lambda-policies](images/lambda-policies.PNG)
+
+- Do not grant the function broader permissions.
+- One of the fastest ways to scope permissions appropriately is to use *AWS SAM policy templates*.
+ You can reference these templates directly in the AWS SAM template for your application, providing custom parameters as required
+- Lambda roles must have access to *CloudWatch Logs*. If you are building a policy manually, ensure
+ that it includes. If the role is missing these permissions, the function still runs but it is unable to log any output to the CloudWatch service
+- Avoiding wildcard permissions in IAM policies.
+- we can use [serverless-safeguards-plugin](https://github.com/serverless/safeguards-plugin/) is a policy-as-code framework to check deployed templates for compliance with security
+
+- Avoid sharing IAM roles with multiple Lambda functions.
+- Every Lambda function should have a 1:1 relationship with an IAM role. Even if some functions have the same policy initially, always separate the IAM roles to ensure least privilege policies.
+
+#### Securing workloads with public endpoints
+- Authentication relates to identity and authorization refers to actions.
+- Use authentication to control who can invoke a Lambda function, and then use authorization to control what they can do. For many applications, IAM is sufficient for managing both control mechanisms.
+- For applications with external users, such as web or mobile applications, it is common to use JSON Web Tokens (JWTs) to manage authentication and authorization.
+- JWTs are passed from the client on every request. They are a cryptographically secure way to verify identity and claims using data passed from the client. For Lambda-based applications, this allows you to secure every call to each API endpoint without relying on a central server for authentication.
+- We can implement JWTs with Amazon Cognito, a user directory service that can handle registration,
+ authentication, account recovery, and other common account management operations.
+- Given the critical security role of an identity provider service, it’s important to use professional tooling to safeguard your application. It’s not recommended that you write your own services to handle authentication or authorization. Any vulnerabilities in custom libraries may have significant implications for the security of your workload and its data.
+- API Gateway supports authorization using AWS Lambda, IAM, or Amazon Cognito. 
+- Unauthenticated API routes may be accessed by anyone on the public internet. It’s important to 
+protect these against common risks, such as denial-of-service (DoS) attacks. Applying AWS WAF to these APIs can help protect your application from SQL injection and cross-site scripting (XSS) attacks. API Gateway also implements throttling at the AWS account-level and per-client level when API keys are used.
+#### Encrypting data in Lambda-based applications
+- Do not store plaintext secrets or API keys in Lambda environment variables.
+- Do not embed secrets directly in function code
+- AWS Systems Manager Parameter Store and AWS Secrets Manager provide a robust approach to storing and managing secrets used in Lambda functions.
+- Using HTTPS securely
+- If yu need an SSL/TLS certificate in your application, to support features like custom domain names, it’s recommended that you use AWS Certificate Manager (ACM). This provides free public certificates for ACM-integrated services and managed certificate renewal.
+
+#### Governance controls with AWS CloudTrail
+- For compliance and operational auditing of application usage, AWS CloudTrail logs activity related to your AWS account usage.
+- Enabling CloudTrail does not have any negative performance implications for your Lambda-based application, since the logging occurs asynchronously.
+- CloudTrail captures two types of events:
+    - Control plane: these events apply to management operations performed on any AWS resources. Individual trails can be configured to capture read or write events, or both.
+    - Data plane: events performed on the resources, such as when a Lambda function is invoked or an S3 object is downloaded.
+- For Lambda:
+    - We can log who creates and invokes functions, together with any changes to IAM roles. 
+    - You can configure CloudTrail to log every single activity by user, role, service, and API 
+    within an AWS account. The service is critical for understanding the history of changes made to your account and also detecting any unintended changes or suspicious activity.
+
+- By integrating CloudTrail with EventBridge, you can create alerts in response to certain activities, and then take action accordingly.
+- CloudTrail can deliver data to CloudWatch Logs and  S3 buckets as well
+- If you use multiple AWS accounts, you can use AWS Organizations to manage and govern individual member accounts centrally. You can set an existing trail as an organization-level trail in a primary account that can collect events from all other member accounts. This can simplify applying consistent auditing rules across a large set of existing accounts, or automatically apply rules to new accounts. 
+- Apply the principles of least privilege to Lambda functions with a VPC configuration:
+    - Apply the principles of least privilege in regard to the networking configuration. This 
+    includes security groups, and access via subnets, NACLs, and route tables. This ensures that traffic from the Lambda function can only reach its intended services and resources.
+
+### Debugging
+- Unexpected event payloads
+- Unexpectedly large payload sizes
+- Incorrectly processing payload parameters
+- Running an unintended function version or alias
+- Triggering infinite loops
+- Downstream unavailability 
+    - [add-resiliency-to-your-lambda-with-a-circuit-breaker](https://dev.to/cdkpatterns/add-resiliency-to-your-lambda-with-a-circuit-breaker-1na6)
+    - Caching, Queuing, Proxies
+- Memory configurations
+- CPU-bound configurations - At 1.8 GB of the memory, a Lambda function has an entire vCPU 
+allocated. At 10,240MB it has 6 vCPUs available.
+- Timeouts - can be set between 1 and 900 seconds (15 minutes)
+    - Timeouts are a safety mechanism and in normal operation do not have a negative impact on cost, since the Lambda service charges by duration. Ensure that your timeout values are not set too close to the average duration of a function to avoid unexpected timeouts.
+- Memory leakage between invocations
+- After the error, the Lambda service restarts the execution environment
+- Asynchronous results returned to a later invocation
+    - should make sure any background processes or callbacks in the code are complete before the code exits
+    - If this is not possible in your use case, you can use an identifier to ensure that the 
+    callback belongs to the current invocation. To do this, you can use the awsRequestId provided by the context object. By passing this value to the asynchronous callback, you can compare the passed value with the current value to detect if the callback originated from another invocation
+    - In JavaScript, asynchronous callbacks are handled with an event loop. 
+    - When the function’s execution environment ends, the Lambda service freezes the environment until the next invocation. After it is resumed, JavaScript continues processing the event loop, which in this case includes an asynchronous callback from a previous invocation. Without this context, it can appear that the function is running code for no reason, and returning arbitrary data. In fact, it is really an artifact of how runtime concurrency and the execution environments interact.
+    - This creates the potential for private data from a previous invocation to appear in a 
+    subsequent invocation. JavaScript provides the async and await keywords to simplify asynchronous development and also force code execution to wait for an asynchronous call to complete.
+- Troubleshooting queue processing by Lambda functions
+    - The Lambda service processes messages from SQS in batches determined by the function’s 
+    batch size property. If there are still messages on the queue, Lambda then scales up the processing function up to an additional 60 instances per minute, to retrieve and process batches more quickly.
+    - This continues as long as the function is not producing errors, there is sufficient unreserved capacity in your account in the current Region (or there is remaining reserved capacity for the function), and there are messages available in the queue.
+    - | Service   |      Default batch size      |  Maximum batch size |
+      |----------|:-------------:|------:|
+      | Amazon Kinesis |  100 | 10,000 |
+      | Amazon DynamoDB Streams |    100   |   1000 |
+      | Amazon SQS | 10 |    10,000 |
+      | Amazon MSK | 100 |    10,000 |
+      
+    - Identifying and managing throttling
+        - Request a concurrency increase from AWS Support in this Region.
+        - Identify performance issues in the function to improve the speed of processing and therefore improve throughput.
+        - Increase the batch size of the function, so more messages are processed by each function invocation.
+    - If the processing function throws errors, messages are returned to the SQS queue. The Lambda service prevents your function from scaling to prevent errors at scale. 
+    - Identifying and handling backpressure
+        - If an event producer consistently generates messages for an SQS queue faster than a Lambda function can process the handling, backpressure occurs. In this case, SQS monitoring shows the age of the earliest message growing linearly, along with the approximate number of messages visible. You can detect backpressure in queues by using CloudWatch alarms.
+        - The steps to resolve backpressure depend on your workload. If the primary goal is to increase processing capability and throughput by the Lambda function
+            - Request a concurrency increase in the specific Region
+            - Increase the batch size of the function, so more messages are processed by each function invocation.
+- Best practices for your debugging environment
+    - Testing in a deployed Lambda function
+    - Testing locally - Junit, AWS SAM local, Serverless offline
+    - Replaying large numbers of events with Amazon EventBridge
+     
+
 
 ## Serverless Microservices Architecture patterns
 ![microservices-serverless-patterns](images/microservices-serverless-patterns.png)  

@@ -94,9 +94,14 @@
         processing.
     - Environment Variables
         - key-value pairs that we can dynamically pass to the function without making code changes.
+        - Stored in a function's version-specific configuration
         - Available via standard environment variable APIs.
-        - Can be encrypted via AWS KMS.
+        - Lambda stores environment variables securely by encrypting them at rest with a key that it creates in your account.
+        - Can be encrypted via AWS KMS CMK.
+        - Can also choose to provide your own key for Lambda on the client side before sending them to Lambda, and decrypt them in your function code. .
         - Useful for different stages (dev,testing,production,etc)
+        - Environment variables are not evaluated prior to the function invocation. Any value you define is considered a literal string and not expanded.
+        - Lambda runtimes set several environment variables during initialization.
     - Tags
     - VPC
     - Monitoring and operations tool - By default, Logs and Metrics enabled. By default, 
@@ -173,7 +178,7 @@ images. We need to use AWS provided base image to build our custom image.
     - Utilize existing container tooling
     - Create image with what you need
     - Perform local testing with runtime interface emulator 
-    - Container image can be upto 50GB in size. But zip deployment is 50MB only.
+    - Container image can be upto 10GB in size. But zip deployment is 50MB only.
 - We need to pay for ECR for storing container images
 - This feature is supported in AWS CLI, CloudFormation, SAM.
 
@@ -1225,6 +1230,7 @@ level, and may also include time-interval restrictions (for example, requests pe
 - The unreserved capacity pool is used by all on-demand Lambda functions. When a function is invoked, it draws from this pool. If unreserved capacity reaches zero, new invocations for any Lambda function in an account will fail.
 - Provisioned Concurrency is a Lambda feature that prepares concurrent execution environments in 
 advance of invocations.
+- You can configure provisioned concurrency on a version of a function, or on an alias.
 - Provisioned Concurrency solves 2 issues:
     - if expected traffic arrives more quickly than the default burst capacity, Provisioned Concurrency can ensure that your function is available to meet the demand
     - if you have latency-sensitive workloads that require predictable double-digit millisecond latency, Provisioned Concurrency solves the typical cold start issues associated with default scaling.
@@ -1242,6 +1248,7 @@ time.
     with a throttling error.
 - You can also use reserved capacity to throttle the rate of requests processed by your workload. For Lambda functions that are invoked asynchronously or using an internal poller, such as for S3, SQS, or DynamoDB integrations, reserved capacity limits how many requests are processed simultaneously.
 - Reserved capacity on a Lambda function also acts as a maximum capacity value. Raising the soft limit on total concurrency does not affect this behavior. If you need a function with reserved capacity to process more traffic, you can update the reserved capacity value, which effectively increases the maximum throughput of your function.
+- Reserved concurrency also limits the maximum concurrency for the function, and applies to the function as a whole, including versions and aliases.
 
 #### Choosing and managing runtimes in Lambda functions
 - Developers must take action if their preferred runtime version is no longer supported by the 
@@ -1281,7 +1288,8 @@ the task of the function.
     function.
     - The function can send the result to a destination, configurable based on success or failure.
     - The internal queue between the caller and the function ensures that messages are stored durably. The Lambda service scales up the concurrency of the processing function as this internal queue grows.
-    - If an error occurs in the Lambda function, the retry behavior is determined by the Lambda service.
+    - If an error occurs in the Lambda function, the retry behavior is determined by the Lambda 
+    service. Lambda handles retries if the function returns an error or is throttled. To customize this behavior, you can configure error handling settings on a function, version, or alias. You can also configure Lambda to send events that failed processing to a dead-letter queue, or to send a record of any invocation to a destination.
 - Polling invocation
     - DynamoDB streams, Kinesis, SQS
 #### Controlling traffic flow for server-based resources
